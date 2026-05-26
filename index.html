@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
 <title>Yves Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
@@ -594,6 +595,108 @@ body::after {
   .gm-card { padding: 16px; }
   .gm-progress-num { font-size: 36px; }
 }
+
+/* ===== iCloud Calendar ===== */
+.cal-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.cal-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.cal-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.cal-edit-btn {
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer; font-size: 14px;
+  padding: 4px 6px; border-radius: 6px;
+  line-height: 1;
+}
+.cal-edit-btn:hover { background: rgba(255,255,255,0.06); }
+.cal-section-label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 14px 0 7px;
+}
+.cal-section-label:first-child { margin-top: 2px; }
+.cal-event {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.cal-event:last-child { border-bottom: none; }
+.cal-event-time {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-tertiary);
+  flex-shrink: 0; min-width: 58px;
+}
+.cal-event-title {
+  font-size: 13px; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cal-day-group { margin-bottom: 8px; }
+.cal-day-label {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 3px;
+}
+.cal-empty, .cal-loading, .cal-error {
+  font-size: 13px; color: var(--text-tertiary); padding: 4px 0;
+}
+.cal-error { color: var(--danger); }
+.cal-week-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+}
+.cal-week-day {
+  text-align: center; padding: 8px 2px;
+  border-radius: 10px; background: rgba(0,0,0,0.2);
+}
+.cal-week-day--today {
+  background: rgba(107,227,164,0.12);
+  border: 1px solid rgba(107,227,164,0.25);
+}
+.cal-week-day-name {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 4px;
+}
+.cal-week-day--today .cal-week-day-name { color: var(--success); }
+.cal-week-day-num {
+  font-family: var(--font-mono);
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+}
+.cal-week-dots { display: flex; justify-content: center; gap: 3px; margin-top: 4px; min-height: 6px; }
+.cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); opacity: 0.8; }
+.cal-setup-text { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }
+.cal-url-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: var(--text-primary); font-family: var(--font-mono); font-size: 12px;
+  padding: 10px 12px; margin-bottom: 10px;
+}
+.cal-url-input:focus { outline: none; border-color: rgba(107,227,164,0.4); }
+.cal-save-btn {
+  width: 100%;
+  background: rgba(107,227,164,0.12);
+  border: 1px solid rgba(107,227,164,0.28);
+  color: var(--success); font-size: 13px; font-weight: 600;
+  padding: 9px 20px; border-radius: 10px; cursor: pointer;
+}
+.cal-save-btn:hover { background: rgba(107,227,164,0.2); }
 </style>
 </head>
 <body>
@@ -689,6 +792,34 @@ body::after {
         <button type="button" id="tomorrowPolishBtn" class="gm-polish">✨ Polish</button>
         <div class="gm-status" id="tomorrowStatus"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- iCloud Kalender -->
+  <div class="cal-card">
+    <div class="cal-card-header">
+      <span class="cal-card-title">📅 Kalender</span>
+      <button class="cal-edit-btn" id="calEditBtn" title="URL ändern" hidden>⚙</button>
+    </div>
+
+    <!-- Setup-Ansicht -->
+    <div id="calSetup">
+      <p class="cal-setup-text">iCloud-Kalender verknüpfen — öffentliche URL einfügen:</p>
+      <input class="cal-url-input" id="calUrlInput" type="url"
+        placeholder="webcal://p62-caldav.icloud.com/published/2/…">
+      <button class="cal-save-btn" id="calSaveBtn">Speichern & laden</button>
+    </div>
+
+    <!-- Kalender-Ansicht -->
+    <div id="calView" hidden>
+      <div class="cal-section-label">Heute</div>
+      <div id="calToday"><div class="cal-loading">Lädt…</div></div>
+
+      <div class="cal-section-label">Demnächst</div>
+      <div id="calUpcoming"></div>
+
+      <div class="cal-section-label">Diese Woche</div>
+      <div class="cal-week-grid" id="calWeekGrid"></div>
     </div>
   </div>
 
@@ -1320,6 +1451,148 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+</script>
+<script>
+(function () {
+  const STORE_KEY = 'ical_url';
+  const setupEl   = document.getElementById('calSetup');
+  const viewEl    = document.getElementById('calView');
+  const urlInput  = document.getElementById('calUrlInput');
+  const saveBtn   = document.getElementById('calSaveBtn');
+  const editBtn   = document.getElementById('calEditBtn');
+  const todayEl   = document.getElementById('calToday');
+  const upcomEl   = document.getElementById('calUpcoming');
+  const weekEl    = document.getElementById('calWeekGrid');
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fmtTime(dt, allDay) {
+    if (allDay) return 'ganztägig';
+    return dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  }
+  function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+
+  function renderToday(evs) {
+    if (!evs.length) { todayEl.innerHTML = '<div class="cal-empty">Keine Termine heute</div>'; return; }
+    todayEl.innerHTML = evs.map(e =>
+      `<div class="cal-event">
+        <span class="cal-event-time">${fmtTime(e.start, e.allDay)}</span>
+        <span class="cal-event-title">${esc(e.title)}</span>
+      </div>`
+    ).join('');
+  }
+
+  function renderUpcoming(evs) {
+    if (!evs.length) { upcomEl.innerHTML = '<div class="cal-empty">Keine weiteren Termine diese Woche</div>'; return; }
+    const byDay = {};
+    evs.forEach(e => {
+      const k = e.start.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
+      (byDay[k] = byDay[k] || []).push(e);
+    });
+    upcomEl.innerHTML = Object.entries(byDay).map(([day, list]) =>
+      `<div class="cal-day-group">
+        <div class="cal-day-label">${day}</div>
+        ${list.map(e =>
+          `<div class="cal-event">
+            <span class="cal-event-time">${fmtTime(e.start, e.allDay)}</span>
+            <span class="cal-event-title">${esc(e.title)}</span>
+          </div>`
+        ).join('')}
+      </div>`
+    ).join('');
+  }
+
+  function renderWeek(evs, weekRef) {
+    const monday = dayStart(weekRef);
+    const dow = monday.getDay();
+    monday.setDate(monday.getDate() + (dow === 0 ? -6 : 1 - dow));
+    const names = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+    weekEl.innerHTML = names.map((n, i) => {
+      const d = new Date(monday); d.setDate(monday.getDate() + i);
+      const nxt = new Date(d); nxt.setDate(d.getDate() + 1);
+      const cnt = evs.filter(e => e.start >= d && e.start < nxt).length;
+      const isToday = d.toDateString() === weekRef.toDateString();
+      return `<div class="cal-week-day${isToday ? ' cal-week-day--today' : ''}">
+        <div class="cal-week-day-name">${n}</div>
+        <div class="cal-week-day-num">${d.getDate()}</div>
+        <div class="cal-week-dots">${Array(Math.min(cnt,3)).fill('<span class="cal-dot"></span>').join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadCalendar(url) {
+    todayEl.innerHTML = '<div class="cal-loading">Lädt…</div>';
+    upcomEl.innerHTML = '';
+    weekEl.innerHTML  = '';
+    setupEl.hidden = true;
+    viewEl.hidden  = false;
+    editBtn.hidden = false;
+    try {
+      const res  = await fetch('/api/calendar-proxy?url=' + encodeURIComponent(url));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      if (!window.ICAL) throw new Error('ical.js nicht geladen');
+
+      const jcal  = ICAL.parse(text);
+      const comp  = new ICAL.Component(jcal);
+      const now   = new Date();
+      const today = dayStart(now);
+      const limit = new Date(today); limit.setDate(today.getDate() + 7);
+
+      const events = [];
+      comp.getAllSubcomponents('vevent').forEach(ve => {
+        const ev = new ICAL.Event(ve);
+        function push(dtIcal) {
+          const dt  = dtIcal.toJSDate();
+          const end = ev.endDate ? ev.endDate.toJSDate() : dt;
+          if (dt >= today && dt < limit)
+            events.push({ title: ev.summary, start: dt, end, allDay: dtIcal.isDate });
+        }
+        if (ev.isRecurring()) {
+          const iter = ev.iterator();
+          let next; let i = 0;
+          while ((next = iter.next()) && i++ < 60) {
+            if (next.toJSDate() >= limit) break;
+            push(next);
+          }
+        } else {
+          push(ev.startDate);
+        }
+      });
+
+      events.sort((a, b) => a.start - b.start);
+      const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+      renderToday(events.filter(e => e.start < tomorrow));
+      renderUpcoming(events.filter(e => e.start >= tomorrow));
+      renderWeek(events, today);
+    } catch (err) {
+      todayEl.innerHTML = `<div class="cal-error">Fehler: ${esc(err.message)}</div>`;
+    }
+  }
+
+  function showSetup() {
+    setupEl.hidden = false;
+    viewEl.hidden  = true;
+    editBtn.hidden = true;
+  }
+
+  saveBtn.addEventListener('click', () => {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    localStorage.setItem(STORE_KEY, url);
+    loadCalendar(url);
+  });
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveBtn.click(); });
+  editBtn.addEventListener('click', showSetup);
+
+  const saved = localStorage.getItem(STORE_KEY);
+  if (saved) { urlInput.value = saved; loadCalendar(saved); }
+  else showSetup();
+
+  // Stündlich neu laden
+  setInterval(() => { const u = localStorage.getItem(STORE_KEY); if (u) loadCalendar(u); }, 60 * 60 * 1000);
+})();
 </script>
 </body>
 </html>

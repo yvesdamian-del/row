@@ -444,6 +444,85 @@ main {
   .stack-search-results { width: 100%; }
 }
 
+/* ===== Apple Watch Metrics ===== */
+.watch-card {
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 20px 22px 18px;
+  margin-bottom: 20px;
+}
+.watch-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.watch-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-quaternary);
+}
+.watch-card-updated {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-quaternary);
+}
+.watch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.watch-metric {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px 8px 12px;
+  text-align: center;
+}
+.watch-metric-icon { font-size: 20px; line-height: 1; margin-bottom: 7px; }
+.watch-metric-value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.watch-metric-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.watch-setup-hint {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.18);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+}
+.watch-setup-hint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+  word-break: break-all;
+}
+@media (max-width: 520px) {
+  .watch-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 ::selection { background: rgba(224, 118, 88, 0.3); color: var(--text-primary); }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -454,6 +533,42 @@ main {
 <body>
 
 <main>
+
+  <!-- Apple Watch Metrics -->
+  <div class="watch-card" id="watchCard">
+    <div class="watch-card-header">
+      <span class="watch-card-title"> Apple Watch</span>
+      <span class="watch-card-updated" id="watchUpdated"></span>
+    </div>
+    <div class="watch-grid">
+      <div class="watch-metric">
+        <div class="watch-metric-icon">🚶</div>
+        <div class="watch-metric-value" id="watchSteps">—</div>
+        <div class="watch-metric-label">Schritte</div>
+      </div>
+      <div class="watch-metric">
+        <div class="watch-metric-icon">🔥</div>
+        <div class="watch-metric-value" id="watchCal">—</div>
+        <div class="watch-metric-label">Kalorien</div>
+      </div>
+      <div class="watch-metric">
+        <div class="watch-metric-icon">❤️</div>
+        <div class="watch-metric-value" id="watchHR">—</div>
+        <div class="watch-metric-label">Herzfreq.</div>
+      </div>
+      <div class="watch-metric">
+        <div class="watch-metric-icon">😴</div>
+        <div class="watch-metric-value" id="watchSleep">—</div>
+        <div class="watch-metric-label">Schlaf</div>
+      </div>
+    </div>
+    <div class="watch-setup-hint" id="watchSetupHint" style="display:none">
+      Noch keine Watch-Daten. Richte Health Auto Export auf deinem iPhone ein:<br>
+      Exportziel → REST API → URL: <code id="watchEndpointUrl"></code><br>
+      Metriken: StepCount, ActiveEnergyBurned, RestingHeartRate, SleepAnalysis
+    </div>
+  </div>
+
   <div class="section-title">Daily Stack</div>
 
   <div class="stack-card">
@@ -1024,6 +1139,61 @@ document.addEventListener('DOMContentLoaded', function () {
     onApplied: function () { window.dispatchEvent(new Event('storage')); }
   });
 });
+</script>
+<script>
+(function () {
+  const SUPABASE_URL = 'https://twbkubukbdqpnarswopm.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_04ay-Y-veywafH89XQBNWA_qvVowwbr';
+
+  // Show the endpoint URL in setup hint
+  const endpointEl = document.getElementById('watchEndpointUrl');
+  if (endpointEl) endpointEl.textContent = window.location.origin + '/api/health-import';
+
+  function relativeTime(iso) {
+    const diff = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (diff < 2) return 'gerade eben';
+    if (diff < 60) return 'vor ' + diff + ' Min';
+    const h = Math.round(diff / 60);
+    if (h < 24) return 'vor ' + h + ' Std';
+    return 'vor ' + Math.round(h / 24) + ' Tagen';
+  }
+
+  async function loadWatch() {
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/app_state?key=eq.apple_health&select=data,updated_at`,
+        { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
+      );
+      const rows = await res.json();
+      if (!rows.length || !rows[0].data) {
+        document.getElementById('watchSetupHint').style.display = '';
+        return;
+      }
+      const { data, updated_at } = rows[0];
+
+      if (data.steps != null)
+        document.getElementById('watchSteps').textContent = data.steps.toLocaleString('de-DE');
+      if (data.calories != null)
+        document.getElementById('watchCal').textContent = data.calories + ' kcal';
+
+      const hr = data.resting_hr ?? data.heart_rate;
+      if (hr != null) document.getElementById('watchHR').textContent = hr + ' bpm';
+
+      if (data.sleep_hours != null) {
+        const h = Math.floor(data.sleep_hours);
+        const m = Math.round((data.sleep_hours - h) * 60);
+        document.getElementById('watchSleep').textContent = h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+      }
+
+      document.getElementById('watchUpdated').textContent = relativeTime(updated_at);
+    } catch (e) {
+      console.error('[watch]', e);
+    }
+  }
+
+  loadWatch();
+  setInterval(loadWatch, 5 * 60 * 1000);
+})();
 </script>
 
 </body>
