@@ -103,6 +103,13 @@ body.topbar-modal-open {
   overflow: hidden;
   touch-action: none;
 }
+/* Prevent iOS auto-zoom on input focus.
+   Safari zooms in whenever an input/select/textarea has font-size < 16px
+   and then stays zoomed. Setting a 16px floor stops the zoom entirely. */
+input, select, textarea {
+  font-size: max(16px, 1em) !important;
+}
+
 /* On phones, blow the modals up to full screen and let them be the only
    scrolling element. Way less "is this scrolling the page or the modal?"
    confusion. */
@@ -298,12 +305,29 @@ body.topbar-modal-open {
     sync();
   }
 
+  // -------- iOS zoom-reset after input blur --------
+  // Belt-and-suspenders: even with font-size ≥ 16px some older iOS builds
+  // can stay zoomed. On focusout we briefly add maximum-scale=1 to snap
+  // the viewport back, then remove it so pinch-zoom stays available.
+  function installInputZoomReset() {
+    document.addEventListener('focusout', function (e) {
+      if (!e.target.matches('input, select, textarea')) return;
+      const mv = document.querySelector('meta[name="viewport"]');
+      if (!mv) return;
+      const orig = mv.content;
+      if (orig.includes('maximum-scale=1')) return; // already locked, skip
+      mv.content = orig + ', maximum-scale=1';
+      requestAnimationFrame(function () { mv.content = orig; });
+    }, true);
+  }
+
   // -------- Boot --------
   function boot() {
     injectStyleAndHTML();
     render();
     lockGestures();
     startModalLock();
+    installInputZoomReset();
 
     // Re-render when localStorage changes from another tab/window OR when
     // the page becomes visible (sync may have pulled in the background).
