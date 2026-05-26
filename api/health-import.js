@@ -23,15 +23,7 @@ const V2_MAP = {
   energy:              'calories',
 };
 
-// HEA date strings: "2026-05-26 14:30:00 +0200" or "2026-05-26 14:30:00"
-function parseHEADate(str) {
-  if (!str) return null;
-  // Remove timezone offset for simple comparison
-  return new Date(str.replace(' ', 'T').replace(/\s[+-]\d{4}$/, ''));
-}
-
 function extractMetrics(metricList) {
-  const today = new Date().toISOString().split('T')[0]; // "2026-05-26"
   const out = {};
   for (const m of metricList) {
     const pts = Array.isArray(m.data) ? m.data : [];
@@ -40,13 +32,17 @@ function extractMetrics(metricList) {
     const key = V1_MAP[m.name] || V2_MAP[m.name] || V2_MAP[m.name?.toLowerCase()];
     if (!key) continue;
 
-    // Only use data points from today
-    const todayPts = pts.filter(d => {
-      const dateStr = d.date || d.startDate || '';
-      return dateStr.startsWith(today);
-    });
-    // Fallback: if nothing matches today, use all (might be a single summary)
-    const usePts = todayPts.length ? todayPts : pts;
+    // Find the most recent date in this metric's data points (handles timezone differences)
+    const dateStrs = pts
+      .map(d => (d.date || d.startDate || '').substring(0, 10))
+      .filter(s => s.length === 10)
+      .sort();
+    const latestDate = dateStrs[dateStrs.length - 1];
+
+    // Only use data points from the most recent date
+    const usePts = latestDate
+      ? pts.filter(d => (d.date || d.startDate || '').startsWith(latestDate))
+      : pts;
 
     if (key === 'steps' || key === 'calories') {
       out[key] = Math.round(usePts.reduce((s, d) => s + (d.qty || 0), 0));
