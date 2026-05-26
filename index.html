@@ -697,12 +697,162 @@ body::after {
   padding: 9px 20px; border-radius: 10px; cursor: pointer;
 }
 .cal-save-btn:hover { background: rgba(107,227,164,0.2); }
+
+/* ===== Reminders ===== */
+.rem-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 16px 18px 14px;
+  margin-bottom: 18px;
+}
+.rem-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.rem-title {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.rem-add-btn {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary); font-size: 18px; font-weight: 300;
+  width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+  flex-shrink: 0;
+}
+.rem-add-btn:hover { background: rgba(255,255,255,0.1); }
+.rem-list { display: flex; flex-direction: column; gap: 6px; }
+.rem-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 11px;
+  background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.rem-item:hover { background: rgba(255,255,255,0.05); }
+.rem-item.done { opacity: 0.42; }
+.rem-check {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 12px; transition: all 0.2s;
+}
+.rem-item.done .rem-check {
+  background: var(--success); border-color: var(--success); color: #050506;
+}
+.rem-item-body { flex: 1; min-width: 0; }
+.rem-item-text {
+  font-size: 14px; color: var(--text-primary); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rem-item.done .rem-item-text { text-decoration: line-through; color: var(--text-tertiary); }
+.rem-item-repeat {
+  font-size: 10px; color: var(--text-tertiary); margin-top: 1px;
+  font-family: var(--font-mono); letter-spacing: 0.06em;
+}
+.rem-del-btn {
+  background: none; border: none; color: var(--text-tertiary);
+  font-size: 16px; cursor: pointer; padding: 4px; border-radius: 6px;
+  opacity: 0; transition: opacity 0.15s; flex-shrink: 0;
+}
+.rem-item:hover .rem-del-btn { opacity: 1; }
+.rem-empty {
+  font-size: 13px; color: var(--text-tertiary); padding: 4px 0;
+  text-align: center;
+}
+/* Add form */
+.rem-form {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.rem-form-row { display: flex; gap: 8px; }
+.rem-form-input {
+  flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; color: var(--text-primary); font-size: 14px; font-family: var(--font);
+  padding: 9px 12px;
+}
+.rem-form-input:focus { outline: none; border-color: rgba(107,227,164,0.4); }
+.rem-repeat-btns { display: flex; gap: 6px; }
+.rem-repeat-btn {
+  flex: 1; padding: 7px 4px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; cursor: pointer;
+  background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text-tertiary); transition: all 0.15s;
+}
+.rem-repeat-btn.active {
+  background: rgba(107,227,164,0.15); border-color: rgba(107,227,164,0.35);
+  color: var(--success);
+}
+.rem-weekdays { display: flex; gap: 5px; flex-wrap: wrap; }
+.rem-wd-btn {
+  width: 36px; height: 32px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  cursor: pointer; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text-tertiary); transition: all 0.15s;
+}
+.rem-wd-btn.active {
+  background: rgba(107,227,164,0.15); border-color: rgba(107,227,164,0.35);
+  color: var(--success);
+}
+.rem-monthday-wrap { display: flex; align-items: center; gap: 8px; }
+.rem-monthday-input {
+  width: 70px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-size: 14px; text-align: center;
+  padding: 7px; font-family: var(--font-mono);
+}
+.rem-monthday-input:focus { outline: none; border-color: rgba(107,227,164,0.4); }
+.rem-save-btn {
+  width: 100%; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: pointer; background: rgba(107,227,164,0.15); border: 1px solid rgba(107,227,164,0.3);
+  color: var(--success); transition: background 0.15s;
+}
+.rem-save-btn:hover { background: rgba(107,227,164,0.25); }
 </style>
 </head>
 <body>
 <div class="page">
 
   <h1 class="dash-title">Yves Dashboard</h1>
+
+  <!-- Erinnerungen -->
+  <div class="rem-card" id="remCard">
+    <div class="rem-header">
+      <span class="rem-title">🔔 Erinnerungen</span>
+      <button class="rem-add-btn" id="remAddBtn" title="Neue Erinnerung">+</button>
+    </div>
+    <div class="rem-list" id="remList">
+      <div class="rem-empty" id="remEmpty">Keine fälligen Erinnerungen heute</div>
+    </div>
+    <div class="rem-form" id="remForm" style="display:none">
+      <div class="rem-form-row">
+        <input class="rem-form-input" id="remInput" type="text"
+          placeholder="z. B. Vogel füttern, Pflanzen gießen…" autocomplete="off">
+      </div>
+      <div class="rem-repeat-btns">
+        <button class="rem-repeat-btn active" data-rep="daily">Täglich</button>
+        <button class="rem-repeat-btn" data-rep="weekly">Wöchentlich</button>
+        <button class="rem-repeat-btn" data-rep="monthly">Monatlich</button>
+      </div>
+      <div id="remWeekdays" class="rem-weekdays" style="display:none">
+        <button class="rem-wd-btn" data-wd="1">Mo</button>
+        <button class="rem-wd-btn" data-wd="2">Di</button>
+        <button class="rem-wd-btn" data-wd="3">Mi</button>
+        <button class="rem-wd-btn" data-wd="4">Do</button>
+        <button class="rem-wd-btn" data-wd="5">Fr</button>
+        <button class="rem-wd-btn" data-wd="6">Sa</button>
+        <button class="rem-wd-btn" data-wd="0">So</button>
+      </div>
+      <div id="remMonthday" class="rem-monthday-wrap" style="display:none">
+        <span style="font-size:13px;color:var(--text-tertiary)">Am</span>
+        <input class="rem-monthday-input" id="remMonthdayInput" type="number"
+          min="1" max="31" value="1">
+        <span style="font-size:13px;color:var(--text-tertiary)">. des Monats</span>
+      </div>
+      <button class="rem-save-btn" id="remSaveBtn">Speichern</button>
+    </div>
+  </div>
 
   <div class="ticker-row">
     <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
@@ -1445,12 +1595,197 @@ document.addEventListener('DOMContentLoaded', function () {
   initCloudSync({
     appKey: 'goals',
     syncedPrefixes: ['goals:'],
+    syncedKeys: ['reminders_v1'],
     onApplied: function () {
       window.dispatchEvent(new CustomEvent('goals-changed'));
       window.dispatchEvent(new Event('storage'));
     }
   });
 });
+</script>
+<script>
+(function () {
+  'use strict';
+  const STORE = 'reminders_v1';
+  const DAY_NAMES = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2,'0') + '-' +
+      String(d.getDate()).padStart(2,'0');
+  }
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; }
+  }
+  function save(list) {
+    localStorage.setItem(STORE, JSON.stringify(list));
+  }
+
+  function isDueToday(r) {
+    const now = new Date();
+    if (r.repeat === 'daily') return true;
+    if (r.repeat === 'weekly') return (r.weekDays || []).includes(now.getDay());
+    if (r.repeat === 'monthly') return now.getDate() === (r.monthDay || 1);
+    return false;
+  }
+
+  function isDone(r) { return !!(r.done || {})[todayKey()]; }
+
+  function repeatLabel(r) {
+    if (r.repeat === 'daily') return 'Täglich';
+    if (r.repeat === 'weekly') {
+      const days = (r.weekDays || []).map(d => DAY_NAMES[d]).join(', ');
+      return 'Wöchentlich · ' + days;
+    }
+    if (r.repeat === 'monthly') return 'Monatlich · ' + r.monthDay + '. des Monats';
+    return '';
+  }
+
+  function render() {
+    const list = load();
+    const today = list.filter(isDueToday);
+    const listEl = document.getElementById('remList');
+    const emptyEl = document.getElementById('remEmpty');
+
+    if (!today.length) {
+      listEl.innerHTML = '';
+      listEl.appendChild(emptyEl);
+      emptyEl.style.display = '';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    // Due first, done after
+    today.sort((a, b) => (isDone(a) ? 1 : 0) - (isDone(b) ? 1 : 0));
+
+    listEl.innerHTML = today.map(r => `
+      <div class="rem-item ${isDone(r) ? 'done' : ''}" data-id="${r.id}">
+        <div class="rem-check">${isDone(r) ? '✓' : ''}</div>
+        <div class="rem-item-body">
+          <div class="rem-item-text">${esc(r.title)}</div>
+          <div class="rem-item-repeat">${repeatLabel(r)}</div>
+        </div>
+        <button class="rem-del-btn" data-del="${r.id}" title="Löschen">✕</button>
+      </div>
+    `).join('');
+
+    // Click to toggle done
+    listEl.querySelectorAll('.rem-item').forEach(el => {
+      el.addEventListener('click', e => {
+        if (e.target.closest('[data-del]')) return;
+        const id = el.dataset.id;
+        const all = load();
+        const item = all.find(r => r.id === id);
+        if (!item) return;
+        item.done = item.done || {};
+        const key = todayKey();
+        item.done[key] = !item.done[key];
+        save(all);
+        render();
+      });
+    });
+
+    // Delete button
+    listEl.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = btn.dataset.del;
+        save(load().filter(r => r.id !== id));
+        render();
+      });
+    });
+  }
+
+  function esc(s) {
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ---- Form logic ----
+  let currentRepeat = 'daily';
+  let selectedWeekdays = [];
+
+  const formEl   = document.getElementById('remForm');
+  const inputEl  = document.getElementById('remInput');
+  const saveBtn  = document.getElementById('remSaveBtn');
+  const addBtn   = document.getElementById('remAddBtn');
+  const wdWrap   = document.getElementById('remWeekdays');
+  const mdWrap   = document.getElementById('remMonthday');
+  const mdInput  = document.getElementById('remMonthdayInput');
+
+  addBtn.addEventListener('click', () => {
+    const open = formEl.style.display !== 'none';
+    formEl.style.display = open ? 'none' : '';
+    addBtn.textContent = open ? '+' : '✕';
+    if (!open) setTimeout(() => inputEl.focus(), 50);
+  });
+
+  document.querySelectorAll('.rem-repeat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentRepeat = btn.dataset.rep;
+      document.querySelectorAll('.rem-repeat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      wdWrap.style.display = currentRepeat === 'weekly' ? '' : 'none';
+      mdWrap.style.display = currentRepeat === 'monthly' ? '' : 'none';
+    });
+  });
+
+  document.querySelectorAll('.rem-wd-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const wd = parseInt(btn.dataset.wd);
+      if (selectedWeekdays.includes(wd)) {
+        selectedWeekdays = selectedWeekdays.filter(d => d !== wd);
+        btn.classList.remove('active');
+      } else {
+        selectedWeekdays.push(wd);
+        btn.classList.add('active');
+      }
+    });
+  });
+
+  saveBtn.addEventListener('click', () => {
+    const title = inputEl.value.trim();
+    if (!title) { inputEl.focus(); return; }
+    if (currentRepeat === 'weekly' && !selectedWeekdays.length) {
+      alert('Bitte mindestens einen Wochentag auswählen.');
+      return;
+    }
+    const item = {
+      id: uid(), title,
+      repeat: currentRepeat,
+      weekDays: currentRepeat === 'weekly' ? [...selectedWeekdays] : [],
+      monthDay: currentRepeat === 'monthly' ? parseInt(mdInput.value) || 1 : 1,
+      done: {}
+    };
+    const all = load();
+    all.push(item);
+    save(all);
+
+    // Reset form
+    inputEl.value = '';
+    selectedWeekdays = [];
+    document.querySelectorAll('.rem-wd-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.rem-repeat-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-rep="daily"]').classList.add('active');
+    currentRepeat = 'daily';
+    wdWrap.style.display = 'none';
+    mdWrap.style.display = 'none';
+    formEl.style.display = 'none';
+    addBtn.textContent = '+';
+    render();
+  });
+
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') saveBtn.click(); });
+
+  // Refresh on storage sync
+  window.addEventListener('storage', render);
+  window.addEventListener('goals-changed', render);
+
+  render();
+})();
 </script>
 <script>
 (function () {
