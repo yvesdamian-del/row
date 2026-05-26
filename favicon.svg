@@ -1,25 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="yg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="gb" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#6EE7B7"/>
-      <stop offset="100%" stop-color="#1D9E75"/>
+      <stop offset="100%" stop-color="#059669"/>
     </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
-  <!-- Rounded square background -->
-  <rect width="512" height="512" rx="110" ry="110" fill="#0a0a0b"/>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" fill="#0a0a0b"/>
   <!-- Subtle inner border -->
-  <rect x="2" y="2" width="508" height="508" rx="109" ry="109" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="2"/>
-  <!-- Bold Y letterform -->
-  <text x="256" y="370"
-    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif"
-    font-size="320"
-    font-weight="800"
-    text-anchor="middle"
-    fill="url(#yg)"
-    filter="url(#glow)"
-    letter-spacing="-8">Y</text>
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none"
+    stroke="rgba(255,255,255,0.07)" stroke-width="2.5"/>
+
+  <!-- Baseline -->
+  <rect x="90" y="432" width="332" height="6" rx="3" fill="rgba(255,255,255,0.09)"/>
+
+  <!-- Left bar (~52% height) -->
+  <rect x="90" y="258" width="90" height="174" rx="22" fill="url(#gb)" opacity="0.42"/>
+
+  <!-- Center bar (tallest ~80%, brightest, glowing) -->
+  <rect x="211" y="160" width="90" height="272" rx="22" fill="url(#gb)" filter="url(#glow)"/>
+
+  <!-- Right bar (~64% height) -->
+  <rect x="332" y="218" width="90" height="214" rx="22" fill="url(#gb)" opacity="0.62"/>
 </svg>
