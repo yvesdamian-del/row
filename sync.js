@@ -1,7 +1,5 @@
 // =============================================================
 // Shared cloud-sync helper. Each page calls initCloudSync({...}).
-// Replace the two placeholders with your Supabase project URL +
-// publishable key (same ones you used in topbar.js/gym.html).
 // =============================================================
 (function () {
   'use strict';
@@ -72,20 +70,39 @@
       if (changed && typeof onApplied === 'function') { try { onApplied(); } catch (e) {} }
       return changed;
     }
+
+    // Push: erst remote lesen, dann mit lokalem Stand mergen und zurückschreiben.
+    // So werden niemals Daten anderer Seiten überschrieben, auch wenn mehrere
+    // Seiten denselben appKey teilen.
     async function pushNow() {
       if (!supa) return;
-      const state = collect();
-      const json = JSON.stringify(state);
+      const localState = collect();
+      const json = JSON.stringify(localState);
       if (json === lastSyncedJson) return;
       try {
+        let merged = {};
+        const { data: existing, error: readErr } = await supa
+          .from('app_state').select('data').eq('key', appKey).maybeSingle();
+        if (readErr) console.error('[sync] push-read error:', readErr.message);
+        if (existing && existing.data && typeof existing.data === 'object') {
+          merged = Object.assign({}, existing.data);
+        }
+        // Lokale Keys einpflegen
+        for (const k of Object.keys(localState)) merged[k] = localState[k];
+        // Keys die wir verwalten und lokal gelöscht wurden, auch remote löschen
+        for (const k of Object.keys(merged)) {
+          if (matches(k) && !(k in localState)) delete merged[k];
+        }
         const { error } = await supa.from('app_state').upsert(
-          { key: appKey, data: state, updated_at: new Date().toISOString() },
+          { key: appKey, data: merged, updated_at: new Date().toISOString() },
           { onConflict: 'key' }
         );
         if (!error) lastSyncedJson = json;
-      } catch (e) {}
+        else console.error('[sync] push error:', error.message);
+      } catch (e) { console.error('[sync] push exception:', e); }
     }
     function schedulePush() { clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 250); }
+
     function flushOnUnload() {
       const state = collect();
       const json = JSON.stringify(state);
@@ -105,31 +122,34 @@
         lastSyncedJson = json;
       } catch (e) {}
     }
+
     async function pullNow() {
       if (!supa) return;
       try {
         const { data, error } = await supa.from('app_state').select('data').eq('key', appKey).maybeSingle();
-        if (!error && data && data.data) {
+        if (error) { console.error('[sync] pull error:', error.message); return; }
+        if (data && data.data) {
           const incoming = JSON.stringify(data.data);
           if (incoming !== lastSyncedJson) {
             lastSyncedJson = incoming;
             applyRemote(data.data);
           }
         }
-      } catch (e) {}
+      } catch (e) { console.error('[sync] pull exception:', e); }
     }
 
     (async function init() {
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       try {
         const { data, error } = await supa.from('app_state').select('data').eq('key', appKey).maybeSingle();
+        if (error) console.error('[sync] init error:', error.message);
         if (!error && data && data.data && Object.keys(data.data).length > 0) {
           lastSyncedJson = JSON.stringify(data.data);
           applyRemote(data.data);
         } else if (Object.keys(collect()).length > 0) {
           schedulePush();
         }
-      } catch (e) {}
+      } catch (e) { console.error('[sync] init exception:', e); }
       supa.channel('app_state_' + appKey)
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'app_state', filter: 'key=eq.' + appKey,
@@ -142,9 +162,6 @@
         })
         .subscribe();
 
-      // Polling fallback — Realtime braucht extra Supabase-Konfiguration.
-      // Auf Focus und alle 15s von Supabase nachladen, damit Änderungen
-      // von anderen Geräten zuverlässig ankommen.
       window.addEventListener('focus', pullNow);
       document.addEventListener('visibilitychange', () => { if (!document.hidden) pullNow(); });
       setInterval(pullNow, 15000);
