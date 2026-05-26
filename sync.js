@@ -105,6 +105,20 @@
         lastSyncedJson = json;
       } catch (e) {}
     }
+    async function pullNow() {
+      if (!supa) return;
+      try {
+        const { data, error } = await supa.from('app_state').select('data').eq('key', appKey).maybeSingle();
+        if (!error && data && data.data) {
+          const incoming = JSON.stringify(data.data);
+          if (incoming !== lastSyncedJson) {
+            lastSyncedJson = incoming;
+            applyRemote(data.data);
+          }
+        }
+      } catch (e) {}
+    }
+
     (async function init() {
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       try {
@@ -127,6 +141,13 @@
           applyRemote(payload.new.data);
         })
         .subscribe();
+
+      // Polling fallback — Realtime braucht extra Supabase-Konfiguration.
+      // Auf Focus und alle 15s von Supabase nachladen, damit Änderungen
+      // von anderen Geräten zuverlässig ankommen.
+      window.addEventListener('focus', pullNow);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) pullNow(); });
+      setInterval(pullNow, 15000);
     })();
     window.addEventListener('beforeunload', flushOnUnload);
     window.addEventListener('pagehide', flushOnUnload);
