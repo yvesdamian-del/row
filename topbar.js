@@ -46,6 +46,11 @@
   transition: background 0.15s, border-color 0.15s;
 }
 .topbar-pill:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.10); }
+.topbar-pill.topbar-pill-active {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.topbar-pill.topbar-pill-active .topbar-pill-label { color: rgba(255, 255, 255, 0.85); }
 .topbar-pill-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: #6ee7b7; flex-shrink: 0;
@@ -326,8 +331,20 @@ input, select, textarea {
   }
 
   // -------- Boot --------
+  function markActivePill() {
+    const path = window.location.pathname;
+    document.querySelectorAll('.topbar-pill').forEach(p => {
+      const href = p.getAttribute('href') || '';
+      const active =
+        (href === 'index.html' && (path.endsWith('/') || path.endsWith('/index.html'))) ||
+        (href !== 'index.html' && path.endsWith(href));
+      p.classList.toggle('topbar-pill-active', active);
+    });
+  }
+
   function boot() {
     injectStyleAndHTML();
+    markActivePill();
     render();
     lockGestures();
     startModalLock();
