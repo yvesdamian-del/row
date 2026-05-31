@@ -1,6 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk');
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 function buildSystem(ctx) {
   const { goals = [], reminders = [], date = '' } = ctx;
@@ -38,8 +36,11 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'NO_API_KEY', message: 'ANTHROPIC_API_KEY nicht gesetzt. Bitte in Vercel Environment Variables eintragen.' });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      error: 'NO_API_KEY',
+      message: 'GEMINI_API_KEY nicht gesetzt. Bitte in Vercel → Settings → Environment Variables eintragen.',
+    });
   }
 
   const { messages, context } = req.body || {};
@@ -48,20 +49,30 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 500,
-      system: [
-        {
-          type: 'text',
-          text: buildSystem(context || {}),
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: messages.slice(-12),
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction: buildSystem(context || {}),
     });
 
-    return res.status(200).json({ content: response.content[0].text });
+    // Gemini chat history: all messages except the last user message
+    // Roles: 'user' stays 'user', 'assistant' becomes 'model'
+    const history = messages.slice(0, -1)
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    // Ensure history starts with user role (Gemini requirement)
+    while (history.length && history[0].role !== 'user') history.shift();
+
+    const chat = model.startChat({ history });
+    const lastMsg = messages[messages.length - 1];
+    const result = await chat.sendMessage(lastMsg.content);
+    const text = result.response.text();
+
+    return res.status(200).json({ content: text });
   } catch (err) {
     console.error('[mentor]', err.message);
     return res.status(500).json({ error: err.message });
