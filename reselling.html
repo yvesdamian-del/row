@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Yves">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.svg">
+<title>Reselling</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0b;
+  --surface: #1c1c1e;
+  --card: #111113;
+  --border: rgba(255,255,255,0.07);
+  --accent: #6EE7B7;
+  --text: #FAFAFA;
+  --dim: rgba(255,255,255,0.42);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", sans-serif;
+  --green: #6EE7B7;
+  --red: #f87171;
+  --s-hochgeladen: #a78bfa;
+  --s-bestellt: #fbbf24;
+  --s-gekauft: #f97316;
+  --s-versendet: #60a5fa;
+  --s-angekommen: #6EE7B7;
+  --s-retour: #ef4444;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; -webkit-text-size-adjust: 100%; }
+
+/* ── Shell ── */
+.rs-shell {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column;
+}
+
+/* ── Page tabs ── */
+.rs-tabs {
+  display: flex; gap: 2px;
+  padding: 10px 14px 0;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.rs-tab {
+  flex: 1; padding: 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 11px 11px 0 0;
+  color: var(--dim); font-size: 13px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  border-bottom: none;
+}
+.rs-tab.on { background: var(--card); color: var(--text); border-color: rgba(255,255,255,0.1); }
+
+/* ── Summary bar ── */
+.rs-summary {
+  display: flex;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.rs-sum-col {
+  flex: 1; padding: 10px 12px;
+  text-align: center; border-right: 1px solid var(--border);
+}
+.rs-sum-col:last-child { border-right: none; }
+.rs-sum-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-bottom: 3px; }
+.rs-sum-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.rs-sum-val.pos { color: var(--green); }
+.rs-sum-val.neg { color: var(--red); }
+
+/* ── Scrollable content area ── */
+.rs-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 10px 12px calc(90px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Filter chips ── */
+.rs-filters {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px;
+  scrollbar-width: none;
+}
+.rs-filters::-webkit-scrollbar { display: none; }
+.rs-chip {
+  flex-shrink: 0; padding: 5px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px; font-weight: 600; color: var(--dim);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.rs-chip.on { background: rgba(110,231,183,0.12); border-color: rgba(110,231,183,0.3); color: var(--accent); }
+
+/* ── Item cards ── */
+.rs-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.rs-card:active { background: rgba(255,255,255,0.05); }
+
+.rs-card-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 8px; margin-bottom: 6px;
+}
+.rs-card-name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; }
+.rs-card-meta { font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+
+.rs-card-prices {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--dim); flex-wrap: wrap;
+}
+.rs-card-prices span { white-space: nowrap; }
+.rs-card-profit {
+  margin-left: auto; font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rs-card-profit.pos { color: var(--green); }
+.rs-card-profit.neg { color: var(--red); }
+.rs-card-profit.zero { color: var(--dim); }
+
+/* ── Status badge ── */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  white-space: nowrap; flex-shrink: 0;
+}
+.badge.hochgeladen { background: rgba(167,139,250,0.15); color: var(--s-hochgeladen); }
+.badge.bestellt    { background: rgba(251,191,36,0.15);  color: var(--s-bestellt); }
+.badge.gekauft     { background: rgba(249,115,22,0.15);  color: var(--s-gekauft); }
+.badge.versendet   { background: rgba(96,165,250,0.15);  color: var(--s-versendet); }
+.badge.angekommen  { background: rgba(110,231,183,0.15); color: var(--s-angekommen); }
+.badge.retour      { background: rgba(239,68,68,0.15);   color: var(--s-retour); }
+
+/* ── Empty state ── */
+.rs-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--dim); font-size: 15px; line-height: 1.6;
+}
+.rs-empty-icon { font-size: 44px; opacity: 0.25; margin-bottom: 12px; }
+
+/* ── Statistics ── */
+.rs-stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;
+}
+.rs-stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 13px; padding: 13px 14px;
+}
+.rs-stat-card.full { grid-column: 1 / -1; }
+.rs-stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; }
+.rs-stat-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.rs-stat-val.pos { color: var(--green); }
+.rs-stat-val.neg { color: var(--red); }
+
+.rs-section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); margin: 14px 0 8px;
+}
+
+.rs-dist-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.rs-dist-row:last-child { border-bottom: none; }
+.rs-dist-label { font-size: 14px; }
+.rs-dist-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.rs-top-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.rs-top-row:last-child { border-bottom: none; }
+.rs-top-label { font-size: 13px; color: var(--dim); }
+.rs-top-val { font-size: 14px; font-weight: 700; color: var(--accent); }
+
+/* ── FAB ── */
+#fab {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(18px + env(safe-area-inset-right));
+  width: 52px; height: 52px;
+  background: var(--accent); border: none; border-radius: 50%;
+  color: #0a0a0b; font-size: 30px; font-weight: 300; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 4px 18px rgba(110,231,183,0.38);
+  z-index: 200; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s;
+}
+#fab:active { transform: scale(0.91); }
+
+/* ── Add / Edit sheet ── */
+#ao {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 500; display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity 0.22s;
+}
+#ao.open { opacity: 1; pointer-events: all; }
+#as {
+  width: 100%; background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 0 17px calc(20px + env(safe-area-inset-bottom));
+  max-height: 92vh; overflow-y: auto;
+  transform: translateY(20px);
+  transition: transform 0.22s cubic-bezier(0.32, 0, 0.2, 1);
+}
+#ao.open #as { transform: translateY(0); }
+
+.sh-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin: 10px auto 16px; }
+.sh-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+
+/* Status chips inside sheet */
+.status-row {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;
+}
+.status-chip {
+  padding: 6px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700;
+  border: 1px solid transparent; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; opacity: 0.5;
+  transition: opacity 0.12s;
+}
+.status-chip.on { opacity: 1; }
+.status-chip.hochgeladen { background: rgba(167,139,250,0.15); color: var(--s-hochgeladen); border-color: rgba(167,139,250,0.3); }
+.status-chip.bestellt    { background: rgba(251,191,36,0.15);  color: var(--s-bestellt);    border-color: rgba(251,191,36,0.3); }
+.status-chip.gekauft     { background: rgba(249,115,22,0.15);  color: var(--s-gekauft);     border-color: rgba(249,115,22,0.3); }
+.status-chip.versendet   { background: rgba(96,165,250,0.15);  color: var(--s-versendet);   border-color: rgba(96,165,250,0.3); }
+.status-chip.angekommen  { background: rgba(110,231,183,0.15); color: var(--s-angekommen);  border-color: rgba(110,231,183,0.3); }
+.status-chip.retour      { background: rgba(239,68,68,0.15);   color: var(--s-retour);      border-color: rgba(239,68,68,0.3); }
+
+.fld { margin-bottom: 12px; }
+.fld-lbl { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.fld input, .fld select {
+  width: 100%; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 11px;
+  padding: 10px 12px; color: var(--text); font-size: 15px; font-family: var(--font);
+  outline: none; -webkit-appearance: none; appearance: none;
+}
+.fld input:focus, .fld select:focus { border-color: var(--accent); }
+.fld select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.fld select option { background: #1c1c1e; }
+
+.fld-row { display: flex; gap: 10px; }
+.fld-row .fld { flex: 1; }
+
+.sh-actions { display: flex; gap: 10px; margin-top: 8px; }
+.sh-actions button {
+  flex: 1; padding: 13px; border-radius: 13px; border: none;
+  font-size: 15px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.btn-cancel { background: rgba(255,255,255,0.08); color: var(--text); }
+.btn-save   { background: var(--accent); color: #0a0a0b; }
+.btn-delete { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25) !important; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="rs-shell" id="shell">
+
+  <!-- Tab bar -->
+  <div class="rs-tabs" id="tabBar">
+    <button class="rs-tab on" data-tab="list">Artikel</button>
+    <button class="rs-tab" data-tab="stats">Statistiken</button>
+  </div>
+
+  <!-- Summary -->
+  <div class="rs-summary">
+    <div class="rs-sum-col">
+      <div class="rs-sum-label">Einkauf</div>
+      <div class="rs-sum-val" id="sumBuy">—</div>
+    </div>
+    <div class="rs-sum-col">
+      <div class="rs-sum-label">Verkauf</div>
+      <div class="rs-sum-val" id="sumSell">—</div>
+    </div>
+    <div class="rs-sum-col">
+      <div class="rs-sum-label">Gewinn</div>
+      <div class="rs-sum-val" id="sumProfit">—</div>
+    </div>
+  </div>
+
+  <!-- ── LIST VIEW ── -->
+  <div class="rs-scroll" id="listView">
+    <!-- filter chips -->
+    <div class="rs-filters" id="filterChips"></div>
+    <!-- item cards -->
+    <div id="itemList"></div>
+  </div>
+
+  <!-- ── STATS VIEW ── -->
+  <div class="rs-scroll hidden" id="statsView">
+    <div class="rs-stats-grid" id="statsGrid"></div>
+    <div class="rs-section-title">Status-Verteilung</div>
+    <div class="rs-stat-card" style="margin-bottom:8px">
+      <div id="distList"></div>
+    </div>
+    <div class="rs-section-title">Top-Auswertung</div>
+    <div class="rs-stat-card">
+      <div id="topList"></div>
+    </div>
+  </div>
+
+</div>
+
+<button id="fab" aria-label="Artikel hinzufügen">+</button>
+
+<!-- Add / Edit sheet -->
+<div id="ao" role="dialog" aria-modal="true">
+  <div id="as">
+    <div class="sh-handle"></div>
+    <div class="sh-title" id="shTitle">Artikel hinzufügen</div>
+
+    <div class="fld">
+      <label class="fld-lbl" for="fName">Artikelname *</label>
+      <input type="text" id="fName" placeholder="z.B. Asics Kayano 14 Rose">
+    </div>
+
+    <div class="fld-row">
+      <div class="fld">
+        <label class="fld-lbl" for="fCat">Kategorie</label>
+        <select id="fCat">
+          <option value="Schuhe">Schuhe</option>
+          <option value="Hoodies">Hoodies</option>
+          <option value="T-Shirts">T-Shirts</option>
+          <option value="Jacken">Jacken</option>
+          <option value="Hosen">Hosen</option>
+          <option value="Shorts">Shorts</option>
+          <option value="Kleider">Kleider</option>
+          <option value="Taschen">Taschen</option>
+          <option value="Caps">Caps</option>
+          <option value="Accessoires">Accessoires</option>
+          <option value="Sonstiges">Sonstiges</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label class="fld-lbl" for="fSize">Größe</label>
+        <input type="text" id="fSize" placeholder="M / 42 / …">
+      </div>
+    </div>
+
+    <div class="fld">
+      <label class="fld-lbl">Status</label>
+      <div class="status-row" id="statusRow"></div>
+    </div>
+
+    <div class="fld-row">
+      <div class="fld">
+        <label class="fld-lbl" for="fBuy">Einkaufspreis (€)</label>
+        <input type="number" id="fBuy" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
+      </div>
+      <div class="fld">
+        <label class="fld-lbl" for="fSell">Verkaufspreis (€)</label>
+        <input type="number" id="fSell" placeholder="0.00" min="0" step="0.01" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="fld-row">
+      <div class="fld">
+        <label class="fld-lbl" for="fUpload">Hochgeladen am</label>
+        <input type="date" id="fUpload">
+      </div>
+      <div class="fld">
+        <label class="fld-lbl" for="fSold">Verkauft am</label>
+        <input type="date" id="fSold">
+      </div>
+    </div>
+
+    <div class="sh-actions">
+      <button class="btn-cancel" id="aCancel" type="button">Abbrechen</button>
+      <button class="btn-delete hidden" id="aDelete" type="button">Löschen</button>
+      <button class="btn-save" id="aSave" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+const LS_KEY = 'reselling_v1';
+const STATUSES = ['hochgeladen','bestellt','gekauft','versendet','angekommen','retour'];
+const STATUS_LABEL = { hochgeladen:'Hochgeladen', bestellt:'Bestellt', gekauft:'Gekauft', versendet:'Versendet', angekommen:'Angekommen', retour:'Retour' };
+const CATS = ['Schuhe','Hoodies','T-Shirts','Jacken','Hosen','Shorts','Kleider','Taschen','Caps','Accessoires','Sonstiges'];
+
+let S = { items: [] };
+let activeTab = 'list';
+let activeFilter = 'alle';
+let editId = null;
+let chosenStatus = 'hochgeladen';
+
+// ── Elements ──
+const shell      = document.getElementById('shell');
+const listView   = document.getElementById('listView');
+const statsView  = document.getElementById('statsView');
+const itemList   = document.getElementById('itemList');
+const filterChips= document.getElementById('filterChips');
+const statsGrid  = document.getElementById('statsGrid');
+const distList   = document.getElementById('distList');
+const topList    = document.getElementById('topList');
+const sumBuy     = document.getElementById('sumBuy');
+const sumSell    = document.getElementById('sumSell');
+const sumProfit  = document.getElementById('sumProfit');
+const ao         = document.getElementById('ao');
+const fName      = document.getElementById('fName');
+const fCat       = document.getElementById('fCat');
+const fSize      = document.getElementById('fSize');
+const fBuy       = document.getElementById('fBuy');
+const fSell      = document.getElementById('fSell');
+const fUpload    = document.getElementById('fUpload');
+const fSold      = document.getElementById('fSold');
+const statusRow  = document.getElementById('statusRow');
+
+// ── Persist ──
+function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {} }
+function load() { try { const r=localStorage.getItem(LS_KEY); if(r) Object.assign(S, JSON.parse(r)); S.items=S.items||[]; } catch(e) {} }
+
+// ── Helpers ──
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function eur(v) { return (v||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function profit(item) { return (item.sellPrice||0)-(item.buyPrice||0); }
+function fmtDate(d) { if(!d) return '—'; const p=d.split('-'); return p[2]+'.'+p[1]+'.'+p[0]; }
+
+// ── Summary ──
+function renderSummary() {
+  const totalBuy  = S.items.reduce((s,i)=>s+(i.buyPrice||0),0);
+  const totalSell = S.items.reduce((s,i)=>s+(i.sellPrice||0),0);
+  const totalPro  = totalSell - totalBuy;
+  sumBuy.textContent = eur(totalBuy);
+  sumSell.textContent = eur(totalSell);
+  sumProfit.textContent = eur(totalPro);
+  sumProfit.className = 'rs-sum-val ' + (totalPro>0?'pos':totalPro<0?'neg':'');
+}
+
+// ── Filter chips ──
+function renderFilters() {
+  filterChips.innerHTML = '';
+  const all = ['alle', ...STATUSES];
+  all.forEach(f => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rs-chip' + (f === activeFilter ? ' on' : '');
+    b.textContent = f === 'alle' ? 'Alle' : STATUS_LABEL[f];
+    b.addEventListener('click', () => { activeFilter = f; renderFilters(); renderList(); });
+    filterChips.appendChild(b);
+  });
+}
+
+// ── List ──
+function renderList() {
+  const filtered = activeFilter === 'alle' ? S.items : S.items.filter(i=>i.status===activeFilter);
+  itemList.innerHTML = '';
+  if (!filtered.length) {
+    const e = document.createElement('div');
+    e.className = 'rs-empty';
+    e.innerHTML = '<div class="rs-empty-icon">🛍</div><div>' +
+      (S.items.length ? 'Keine Artikel mit diesem Filter.' : 'Noch keine Artikel.<br>Tippe <strong>+</strong> um zu starten.') +
+      '</div>';
+    itemList.appendChild(e);
+    return;
+  }
+  // Show newest first
+  [...filtered].reverse().forEach(item => {
+    const pro = profit(item);
+    const proClass = pro > 0 ? 'pos' : pro < 0 ? 'neg' : 'zero';
+    const card = document.createElement('div');
+    card.className = 'rs-card';
+    card.innerHTML = `
+      <div class="rs-card-top">
+        <div class="rs-card-name">${esc(item.name)}</div>
+        <span class="badge ${item.status}">${STATUS_LABEL[item.status]||item.status}</span>
+      </div>
+      <div class="rs-card-meta">${esc(item.cat||'—')}${item.size?' · Gr. '+esc(item.size):''}</div>
+      <div class="rs-card-prices">
+        <span>Einkauf: ${eur(item.buyPrice)}</span>
+        ${item.sellPrice ? '<span>Verkauf: '+eur(item.sellPrice)+'</span>' : ''}
+        ${item.uploadDate||item.saleDate ? '<span style="color:var(--dim);font-size:11px">'+
+          (item.uploadDate?fmtDate(item.uploadDate):'')+(item.saleDate?' → '+fmtDate(item.saleDate):'')+
+          '</span>' : ''}
+        <span class="rs-card-profit ${proClass}">${pro>=0?'+':''}${eur(pro)}</span>
+      </div>`;
+    card.addEventListener('click', () => openSheet(item));
+    itemList.appendChild(card);
+  });
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Statistics ──
+function renderStats() {
+  const items = S.items;
+  const sold = items.filter(i=>i.status==='gekauft'||i.status==='angekommen');
+  const totalBuy  = items.reduce((s,i)=>s+(i.buyPrice||0),0);
+  const totalSell = sold.reduce((s,i)=>s+(i.sellPrice||0),0);
+  const totalPro  = items.reduce((s,i)=>s+profit(i),0);
+  const avgMarge  = totalSell > 0 ? (totalPro/totalSell*100) : 0;
+  const maxSell   = items.reduce((m,i)=>Math.max(m,i.sellPrice||0),0);
+  const avgSell   = sold.length ? totalSell/sold.length : 0;
+
+  const metrics = [
+    { label:'Artikel gesamt', val: items.length, unit:'' },
+    { label:'Verkäufe', val: sold.length, unit:'' },
+    { label:'Gesamtumsatz', val: eur(totalSell), cls: 'pos' },
+    { label:'Gesamt-Einkauf', val: eur(totalBuy) },
+    { label:'Gesamtgewinn', val: (totalPro>=0?'+':'')+eur(totalPro), cls: totalPro>=0?'pos':'neg' },
+    { label:'Ø Gewinn / Verkauf', val: sold.length ? (totalPro/sold.length>=0?'+':'')+eur(totalPro/sold.length) : '—', cls: totalPro>=0?'pos':'neg' },
+    { label:'Ø Marge', val: sold.length ? (avgMarge>=0?'+':'')+avgMarge.toFixed(1)+' %' : '—', cls: avgMarge>=0?'pos':'neg' },
+    { label:'Höchster Verkaufspreis', val: eur(maxSell) },
+  ];
+
+  statsGrid.innerHTML = '';
+  metrics.forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'rs-stat-card';
+    d.innerHTML = `<div class="rs-stat-label">${m.label}</div><div class="rs-stat-val ${m.cls||''}">${m.val}</div>`;
+    statsGrid.appendChild(d);
+  });
+
+  // Status distribution
+  distList.innerHTML = '';
+  STATUSES.forEach(s => {
+    const cnt = items.filter(i=>i.status===s).length;
+    const r = document.createElement('div');
+    r.className = 'rs-dist-row';
+    r.innerHTML = `<span class="rs-dist-label"><span class="badge ${s}">${STATUS_LABEL[s]}</span></span>
+      <span class="rs-dist-val" style="color:${cnt>0?'var(--text)':'var(--dim)'}">${cnt}</span>`;
+    distList.appendChild(r);
+  });
+
+  // Top categories
+  topList.innerHTML = '';
+  const catSales = {}, catProfit = {};
+  sold.forEach(i=>{ catSales[i.cat||'?']=(catSales[i.cat||'?']||0)+1; });
+  items.forEach(i=>{ catProfit[i.cat||'?']=(catProfit[i.cat||'?']||0)+profit(i); });
+  const topSale = Object.entries(catSales).sort((a,b)=>b[1]-a[1])[0];
+  const topPro  = Object.entries(catProfit).sort((a,b)=>b[1]-a[1])[0];
+  const rows = [
+    ['Meiste Verkäufe', topSale?topSale[0]:'—'],
+    ['Höchster Gewinn', topPro?topPro[0]:'—'],
+  ];
+  rows.forEach(([lbl,val]) => {
+    const r = document.createElement('div');
+    r.className = 'rs-top-row';
+    r.innerHTML = `<span class="rs-top-label">${lbl}</span><span class="rs-top-val">${val}</span>`;
+    topList.appendChild(r);
+  });
+}
+
+// ── Tabs ──
+document.querySelectorAll('.rs-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.rs-tab').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    activeTab = btn.dataset.tab;
+    listView.classList.toggle('hidden', activeTab !== 'list');
+    statsView.classList.toggle('hidden', activeTab !== 'stats');
+    if (activeTab === 'stats') renderStats();
+  });
+});
+
+// ── Sheet status chips ──
+STATUSES.forEach(s => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'status-chip ' + s + (s === chosenStatus ? ' on' : '');
+  b.textContent = STATUS_LABEL[s];
+  b.dataset.s = s;
+  b.addEventListener('click', () => {
+    statusRow.querySelectorAll('.status-chip').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    chosenStatus = s;
+  });
+  statusRow.appendChild(b);
+});
+
+// ── Open sheet ──
+function openSheet(item) {
+  editId = item ? item.id : null;
+  document.getElementById('shTitle').textContent = item ? 'Artikel bearbeiten' : 'Artikel hinzufügen';
+  document.getElementById('aDelete').classList.toggle('hidden', !item);
+
+  fName.value   = item ? (item.name||'') : '';
+  fCat.value    = item ? (item.cat||'Schuhe') : 'Schuhe';
+  fSize.value   = item ? (item.size||'') : '';
+  fBuy.value    = item ? (item.buyPrice||'') : '';
+  fSell.value   = item ? (item.sellPrice||'') : '';
+  fUpload.value = item ? (item.uploadDate||'') : '';
+  fSold.value   = item ? (item.saleDate||'') : '';
+
+  chosenStatus = item ? (item.status||'hochgeladen') : 'hochgeladen';
+  statusRow.querySelectorAll('.status-chip').forEach(b => {
+    b.classList.toggle('on', b.dataset.s === chosenStatus);
+  });
+
+  ao.classList.add('open');
+  setTimeout(() => fName.focus(), 300);
+}
+
+document.getElementById('fab').addEventListener('click', () => openSheet(null));
+document.getElementById('aCancel').addEventListener('click', () => ao.classList.remove('open'));
+ao.addEventListener('click', e => { if (e.target === ao) ao.classList.remove('open'); });
+
+document.getElementById('aDelete').addEventListener('click', () => {
+  if (!editId) return;
+  S.items = S.items.filter(i=>i.id!==editId);
+  ao.classList.remove('open');
+  renderAll(); save();
+});
+
+document.getElementById('aSave').addEventListener('click', () => {
+  const name = fName.value.trim();
+  if (!name) { fName.focus(); return; }
+  const data = {
+    id: editId || uid(),
+    name,
+    cat:        fCat.value,
+    size:       fSize.value.trim(),
+    status:     chosenStatus,
+    buyPrice:   parseFloat(fBuy.value)||0,
+    sellPrice:  parseFloat(fSell.value)||0,
+    uploadDate: fUpload.value,
+    saleDate:   fSold.value,
+  };
+  if (editId) {
+    const idx = S.items.findIndex(i=>i.id===editId);
+    if (idx>=0) S.items[idx]=data;
+  } else {
+    S.items.push(data);
+  }
+  ao.classList.remove('open');
+  renderAll(); save();
+});
+
+// ── Render all ──
+function renderAll() {
+  renderSummary();
+  renderFilters();
+  renderList();
+  if (activeTab === 'stats') renderStats();
+}
+
+// ── Topbar offset ──
+function adjustForTopbar() {
+  const tb = document.getElementById('topbar');
+  if (!tb) return;
+  const h = tb.offsetHeight;
+  document.querySelector('.rs-tabs').style.paddingTop = (h + 6) + 'px';
+}
+(function waitForTopbar() {
+  if (document.getElementById('topbar')) { adjustForTopbar(); return; }
+  const obs = new MutationObserver(() => {
+    if (document.getElementById('topbar')) { adjustForTopbar(); obs.disconnect(); }
+  });
+  obs.observe(document.body, { childList: true });
+})();
+window.addEventListener('resize', adjustForTopbar);
+
+// ── Cloud sync ──
+window.addEventListener('load', () => {
+  if (typeof initCloudSync === 'function') {
+    initCloudSync({
+      appKey: 'reselling',
+      syncedKeys: [LS_KEY],
+      onApplied: () => { load(); renderAll(); }
+    });
+  }
+});
+
+// ── Init ──
+load();
+renderAll();
+
+})();
+</script>
+</body>
+</html>

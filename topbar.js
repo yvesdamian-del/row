@@ -156,6 +156,10 @@ input, select, textarea {
     <span class="topbar-pill-dot" style="background:#a78bfa;"></span>
     <span class="topbar-pill-label">VISION</span>
   </a>
+  <a href="reselling.html" class="topbar-pill" id="topbarResell">
+    <span class="topbar-pill-dot" style="background:#f97316;"></span>
+    <span class="topbar-pill-label">RESELL</span>
+  </a>
 </header>
 `;
 
