@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Yves">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.svg">
+<title>Vision Board</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0b;
+  --surface: #1c1c1e;
+  --card: #161618;
+  --border: rgba(255,255,255,0.08);
+  --accent: #6EE7B7;
+  --text: #FAFAFA;
+  --dim: rgba(255,255,255,0.42);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", sans-serif;
+}
+
+html, body {
+  height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── Viewport ── */
+#vp {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  touch-action: none;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── Canvas (transform container) ── */
+#cvs {
+  position: absolute;
+  top: 0; left: 0;
+  width: 0; height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Cards ── */
+.vbc {
+  position: absolute;
+  width: 192px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.55);
+  cursor: grab;
+  user-select: none; -webkit-user-select: none;
+  touch-action: none;
+  will-change: transform;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.vbc.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(110,231,183,0.22), 0 6px 28px rgba(0,0,0,0.55);
+}
+.vbc.drag { cursor: grabbing; box-shadow: 0 18px 52px rgba(0,0,0,0.72); }
+
+.vbc-img { width: 100%; height: 142px; object-fit: cover; display: block; }
+.vbc-img-err {
+  width: 100%; height: 90px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 11px;
+  background: rgba(255,255,255,0.03);
+}
+.vbc-body { padding: 10px 12px 13px; }
+.vbc-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; line-height: 1.35; }
+.vbc-note { font-size: 11px; color: var(--dim); line-height: 1.45; }
+
+/* Text card */
+.vbc.txt { width: 176px; }
+.vbc-stripe { height: 3px; }
+.vbc-text {
+  padding: 14px 13px 16px;
+  font-size: 14px; font-weight: 500;
+  line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ── FAB ── */
+#fab {
+  position: fixed;
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  right: calc(20px + env(safe-area-inset-right));
+  width: 52px; height: 52px;
+  background: var(--accent);
+  border: none; border-radius: 50%;
+  color: #0a0a0b;
+  font-size: 30px; font-weight: 300; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(110,231,183,0.38);
+  z-index: 200;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s;
+}
+#fab:active { transform: scale(0.92); }
+
+/* ── Zoom bar ── */
+#zb {
+  position: fixed;
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  left: calc(14px + env(safe-area-inset-left));
+  display: flex; gap: 3px; z-index: 200;
+}
+.zb-btn {
+  width: 34px; height: 34px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: var(--text); font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.zb-btn:active { background: rgba(255,255,255,0.13); }
+
+/* ── Empty state ── */
+#empty {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none; z-index: 5;
+  gap: 10px;
+  transition: opacity 0.35s;
+}
+#empty-icon { font-size: 52px; opacity: 0.22; }
+#empty-hint { font-size: 15px; color: var(--dim); text-align: center; line-height: 1.55; }
+
+/* ── Add overlay ── */
+#ao {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 500;
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s;
+}
+#ao.open { opacity: 1; pointer-events: all; }
+
+#as {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 0 18px calc(20px + env(safe-area-inset-bottom));
+  max-height: 88vh; overflow-y: auto;
+  transform: translateY(16px);
+  transition: transform 0.22s cubic-bezier(0.32, 0, 0.2, 1);
+}
+#ao.open #as { transform: translateY(0); }
+
+.sh-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin: 10px auto 18px; }
+.sh-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.tab-btn {
+  flex: 1; padding: 9px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 11px;
+  color: var(--dim); font-size: 14px; font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tab-btn.on {
+  background: rgba(110,231,183,0.1);
+  border-color: rgba(110,231,183,0.3);
+  color: var(--accent);
+}
+
+.fld { margin-bottom: 13px; }
+.fld-lbl {
+  display: block; margin-bottom: 6px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim);
+}
+.fld input, .fld textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 11px;
+  padding: 10px 12px;
+  color: var(--text); font-size: 15px; font-family: var(--font);
+  outline: none; -webkit-appearance: none;
+}
+.fld input:focus, .fld textarea:focus { border-color: var(--accent); }
+.fld textarea { resize: none; height: 90px; line-height: 1.45; }
+
+#prevImg {
+  width: 100%; height: 110px; object-fit: cover;
+  border-radius: 11px; margin-bottom: 13px; display: none;
+}
+
+.clrs { display: flex; gap: 9px; margin-bottom: 14px; }
+.clr-btn {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer;
+  transition: border-color 0.1s; flex-shrink: 0;
+}
+.clr-btn.on { border-color: #fff; }
+
+.sh-actions { display: flex; gap: 10px; margin-top: 6px; }
+.sh-actions button {
+  flex: 1; padding: 13px; border-radius: 13px; border: none;
+  font-size: 15px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.btn-cancel { background: rgba(255,255,255,0.08); color: var(--text); }
+.btn-save { background: var(--accent); color: #0a0a0b; }
+
+/* ── Edit bar ── */
+#eb {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 13px calc(10px + env(safe-area-inset-bottom));
+  z-index: 300;
+  display: flex; align-items: center; gap: 8px;
+  transform: translateY(100%);
+  transition: transform 0.22s cubic-bezier(0.32, 0, 0.2, 1);
+}
+#eb.open { transform: translateY(0); }
+
+.eb-in {
+  flex: 1; min-width: 0;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 8px 11px;
+  color: var(--text); font-size: 14px; font-family: var(--font);
+  outline: none; -webkit-appearance: none;
+}
+.eb-in:focus { border-color: var(--accent); }
+
+.eb-del {
+  width: 37px; height: 37px; flex-shrink: 0;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #f87171; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="vp"><div id="cvs"></div></div>
+
+<div id="empty">
+  <div id="empty-icon">✦</div>
+  <div id="empty-hint">Tippe <strong style="color:var(--accent)">+</strong> um dein erstes<br>Bild oder Zitat hinzuzufügen</div>
+</div>
+
+<button id="fab" aria-label="Hinzufügen">+</button>
+
+<div id="zb">
+  <button class="zb-btn" id="zOut" aria-label="Rauszoomen">−</button>
+  <button class="zb-btn" id="zReset" aria-label="Ansicht zurücksetzen">⌂</button>
+  <button class="zb-btn" id="zIn" aria-label="Reinzoomen">+</button>
+</div>
+
+<!-- Add sheet -->
+<div id="ao" role="dialog" aria-modal="true" aria-label="Karte hinzufügen">
+  <div id="as">
+    <div class="sh-handle"></div>
+    <div class="sh-title">Hinzufügen</div>
+    <div class="tabs">
+      <button class="tab-btn on" data-t="img" type="button">🖼 Bild</button>
+      <button class="tab-btn" data-t="txt" type="button">✏️ Text</button>
+    </div>
+
+    <div id="pImg">
+      <div class="fld">
+        <label class="fld-lbl" for="iUrl">Bild-URL</label>
+        <input type="url" id="iUrl" placeholder="https://..." inputmode="url" autocomplete="off">
+      </div>
+      <img id="prevImg" alt="Vorschau">
+      <div class="fld">
+        <label class="fld-lbl" for="iTitle">Titel</label>
+        <input type="text" id="iTitle" placeholder="z.B. Traumhaus in der Toskana">
+      </div>
+      <div class="fld">
+        <label class="fld-lbl" for="iNote">Kommentar</label>
+        <textarea id="iNote" placeholder="Warum willst du das?&#10;Wie fühlt es sich an?"></textarea>
+      </div>
+    </div>
+
+    <div id="pTxt" class="hidden">
+      <div class="fld">
+        <label class="fld-lbl" for="iTxt">Text / Zitat / Ziel</label>
+        <textarea id="iTxt" placeholder="Was motiviert dich?&#10;Schreib es hier..."></textarea>
+      </div>
+      <label class="fld-lbl">Farbe</label>
+      <div class="clrs" id="clrRow"></div>
+    </div>
+
+    <div class="sh-actions">
+      <button class="btn-cancel" id="aCancel" type="button">Abbrechen</button>
+      <button class="btn-save" id="aSave" type="button">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit bar (slides up on card select) -->
+<div id="eb">
+  <input class="eb-in" id="ebMain" type="text" placeholder="Titel / Text…">
+  <input class="eb-in" id="ebNote" type="text" placeholder="Kommentar…">
+  <button class="eb-del" id="ebDel" type="button" aria-label="Karte löschen">🗑</button>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+const COLORS = ['#6EE7B7','#60a5fa','#f59e0b','#f472b6','#a78bfa','#fb923c'];
+const LS_KEY = 'visionboard_v1';
+
+// ── State ──
+let S = { cards: [], px: 0, py: 0, sc: 1 };
+let selId = null, addType = 'img', addColor = COLORS[0];
+
+const vp   = document.getElementById('vp');
+const cvs  = document.getElementById('cvs');
+const fab  = document.getElementById('fab');
+const ao   = document.getElementById('ao');
+const iUrl   = document.getElementById('iUrl');
+const iTitle = document.getElementById('iTitle');
+const iNote  = document.getElementById('iNote');
+const iTxt   = document.getElementById('iTxt');
+const prevImg = document.getElementById('prevImg');
+const pImg   = document.getElementById('pImg');
+const pTxt   = document.getElementById('pTxt');
+const eb     = document.getElementById('eb');
+const ebMain = document.getElementById('ebMain');
+const ebNote = document.getElementById('ebNote');
+const empty  = document.getElementById('empty');
+
+// ── Persistence ──
+function save() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {}
+}
+function load() {
+  try {
+    const r = localStorage.getItem(LS_KEY);
+    if (r) Object.assign(S, JSON.parse(r));
+  } catch(e) {}
+  if (!S.px && !S.py) {
+    S.px = vp.clientWidth / 2;
+    S.py = vp.clientHeight / 2;
+  }
+}
+
+// ── Transform ──
+function applyT() {
+  cvs.style.transform = `translate(${S.px}px,${S.py}px) scale(${S.sc})`;
+}
+function zoomAt(cx, cy, ns) {
+  ns = Math.max(0.15, Math.min(5, ns));
+  const d = ns / S.sc;
+  S.px = cx + (S.px - cx) * d;
+  S.py = cy + (S.py - cy) * d;
+  S.sc = ns;
+  applyT(); save();
+}
+function viewCenter(cardW) {
+  return {
+    x: (vp.clientWidth  / 2 - S.px) / S.sc - cardW / 2,
+    y: (vp.clientHeight / 2 - S.py) / S.sc - 100,
+  };
+}
+
+// ── Render ──
+function renderAll() {
+  cvs.innerHTML = '';
+  for (const c of S.cards) makeCard(c);
+  applyT();
+  empty.style.opacity = S.cards.length ? '0' : '1';
+}
+
+function makeCard(c) {
+  const el = document.createElement('div');
+  el.className = 'vbc' + (c.type === 'txt' ? ' txt' : '') + (c.id === selId ? ' sel' : '');
+  el.dataset.id = c.id;
+  el.style.left = c.x + 'px';
+  el.style.top  = c.y + 'px';
+
+  if (c.type === 'img') {
+    if (c.url) {
+      const img = document.createElement('img');
+      img.className = 'vbc-img';
+      img.src = c.url;
+      img.draggable = false;
+      img.onerror = () => img.replaceWith(errEl());
+      el.appendChild(img);
+    }
+    const body = document.createElement('div');
+    body.className = 'vbc-body';
+    if (c.title) { const t = document.createElement('div'); t.className = 'vbc-title'; t.textContent = c.title; body.appendChild(t); }
+    if (c.note)  { const n = document.createElement('div'); n.className = 'vbc-note';  n.textContent = c.note;  body.appendChild(n); }
+    if (c.title || c.note || !c.url) el.appendChild(body);
+  } else {
+    const stripe = document.createElement('div');
+    stripe.className = 'vbc-stripe';
+    stripe.style.background = c.color || COLORS[0];
+    el.appendChild(stripe);
+    const t = document.createElement('div');
+    t.className = 'vbc-text';
+    t.textContent = c.text || '';
+    el.appendChild(t);
+  }
+
+  attachCard(el, c);
+  cvs.appendChild(el);
+}
+
+function errEl() {
+  const d = document.createElement('div');
+  d.className = 'vbc-img-err';
+  d.textContent = 'Bild konnte nicht geladen werden';
+  return d;
+}
+
+function patchCardEl(c) {
+  const el = cvs.querySelector(`[data-id="${c.id}"]`);
+  if (!el) return;
+  const t  = el.querySelector('.vbc-title');
+  const n  = el.querySelector('.vbc-note');
+  const tx = el.querySelector('.vbc-text');
+  if (t)  t.textContent  = c.title || '';
+  if (n)  n.textContent  = c.note  || '';
+  if (tx) tx.textContent = c.text  || '';
+}
+
+// ── Pointer: viewport pan / pinch ──
+const vpPtrs = new Map();
+let panS = null, pinchS = null;
+
+vp.addEventListener('pointerdown', (e) => {
+  if (e.target !== vp && e.target !== cvs) return;
+  vp.setPointerCapture(e.pointerId);
+  vpPtrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (vpPtrs.size === 1) {
+    panS = {px: S.px, py: S.py, sx: e.clientX, sy: e.clientY, moved: false};
+    pinchS = null;
+  } else if (vpPtrs.size === 2) {
+    const pts = [...vpPtrs.values()];
+    pinchS = {
+      dist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
+      sc: S.sc, px: S.px, py: S.py,
+      mx: (pts[0].x + pts[1].x) / 2,
+      my: (pts[0].y + pts[1].y) / 2,
+    };
+    panS = null;
+  }
+});
+
+vp.addEventListener('pointermove', (e) => {
+  if (!vpPtrs.has(e.pointerId)) return;
+  vpPtrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (pinchS && vpPtrs.size === 2) {
+    const pts = [...vpPtrs.values()];
+    const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+    const ns = Math.max(0.15, Math.min(5, pinchS.sc * dist / pinchS.dist));
+    S.px = pinchS.mx + (pinchS.px - pinchS.mx) * (ns / pinchS.sc);
+    S.py = pinchS.my + (pinchS.py - pinchS.my) * (ns / pinchS.sc);
+    S.sc = ns;
+    applyT();
+  } else if (panS && vpPtrs.size === 1) {
+    const dx = e.clientX - panS.sx, dy = e.clientY - panS.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 4) panS.moved = true;
+    S.px = panS.px + dx; S.py = panS.py + dy;
+    applyT();
+  }
+});
+
+vp.addEventListener('pointerup', (e) => {
+  if (panS && !panS.moved && vpPtrs.size === 1) desel();
+  vpPtrs.delete(e.pointerId);
+  if (vpPtrs.size === 0) { save(); panS = null; pinchS = null; }
+});
+vp.addEventListener('pointercancel', (e) => {
+  vpPtrs.delete(e.pointerId);
+  if (vpPtrs.size === 0) { panS = null; pinchS = null; }
+});
+
+// Mouse wheel zoom (desktop/trackpad)
+vp.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, S.sc * (e.deltaY > 0 ? 0.9 : 1.1));
+}, { passive: false });
+
+// ── Pointer: card drag / tap ──
+function attachCard(el, c) {
+  const cPtrs = new Map();
+  let ds = null;
+
+  el.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    cPtrs.set(e.pointerId, 1);
+    if (cPtrs.size === 1) ds = {sx: e.clientX, sy: e.clientY, cx: c.x, cy: c.y, moved: false};
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!ds || !cPtrs.has(e.pointerId)) return;
+    e.stopPropagation();
+    const dx = (e.clientX - ds.sx) / S.sc;
+    const dy = (e.clientY - ds.sy) / S.sc;
+    if (!ds.moved && Math.abs(dx) + Math.abs(dy) > 5) { ds.moved = true; el.classList.add('drag'); }
+    if (ds.moved) {
+      c.x = ds.cx + dx; c.y = ds.cy + dy;
+      el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+    }
+  });
+
+  el.addEventListener('pointerup', (e) => {
+    e.stopPropagation();
+    cPtrs.delete(e.pointerId);
+    el.classList.remove('drag');
+    if (ds) { if (!ds.moved) sel(c.id); else save(); ds = null; }
+  });
+  el.addEventListener('pointercancel', (e) => {
+    cPtrs.delete(e.pointerId); el.classList.remove('drag'); ds = null;
+  });
+}
+
+// ── Selection ──
+function sel(id) {
+  selId = id;
+  cvs.querySelectorAll('.vbc').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+  const c = S.cards.find(c => c.id === id);
+  if (!c) return;
+  ebMain.placeholder = c.type === 'txt' ? 'Text…' : 'Titel…';
+  ebMain.value = c.type === 'txt' ? (c.text || '') : (c.title || '');
+  ebNote.value = c.note || '';
+  ebNote.classList.toggle('hidden', c.type === 'txt');
+  eb.classList.add('open');
+}
+function desel() {
+  selId = null;
+  cvs.querySelectorAll('.vbc').forEach(el => el.classList.remove('sel'));
+  eb.classList.remove('open');
+}
+
+// ── Edit bar ──
+ebMain.addEventListener('input', () => {
+  const c = S.cards.find(c => c.id === selId); if (!c) return;
+  if (c.type === 'txt') c.text = ebMain.value; else c.title = ebMain.value;
+  patchCardEl(c); save();
+});
+ebNote.addEventListener('input', () => {
+  const c = S.cards.find(c => c.id === selId); if (!c) return;
+  c.note = ebNote.value; patchCardEl(c); save();
+});
+document.getElementById('ebDel').addEventListener('click', () => {
+  if (!selId) return;
+  S.cards = S.cards.filter(c => c.id !== selId);
+  desel(); renderAll(); save();
+});
+
+// ── Color swatches ──
+const clrRow = document.getElementById('clrRow');
+COLORS.forEach((col, i) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'clr-btn' + (i === 0 ? ' on' : '');
+  b.style.background = col;
+  b.dataset.c = col;
+  b.addEventListener('click', () => {
+    clrRow.querySelectorAll('.clr-btn').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    addColor = col;
+  });
+  clrRow.appendChild(b);
+});
+
+// ── Tabs ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    addType = btn.dataset.t;
+    pImg.classList.toggle('hidden', addType !== 'img');
+    pTxt.classList.toggle('hidden', addType !== 'txt');
+  });
+});
+
+// ── URL preview ──
+function refreshPreview() {
+  const url = iUrl.value.trim();
+  if (url) { prevImg.src = url; prevImg.style.display = 'block'; }
+  else prevImg.style.display = 'none';
+}
+iUrl.addEventListener('change', refreshPreview);
+iUrl.addEventListener('blur', refreshPreview);
+
+// ── FAB / Add sheet ──
+fab.addEventListener('click', openSheet);
+function openSheet() {
+  addType = 'img';
+  iUrl.value = ''; iTitle.value = ''; iNote.value = ''; iTxt.value = '';
+  prevImg.style.display = 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('on', i === 0));
+  pImg.classList.remove('hidden'); pTxt.classList.add('hidden');
+  ao.classList.add('open');
+}
+document.getElementById('aCancel').addEventListener('click', () => ao.classList.remove('open'));
+ao.addEventListener('click', e => { if (e.target === ao) ao.classList.remove('open'); });
+
+document.getElementById('aSave').addEventListener('click', () => {
+  let card;
+  if (addType === 'img') {
+    const url = iUrl.value.trim(), title = iTitle.value.trim(), note = iNote.value.trim();
+    if (!url && !title) return;
+    const pos = viewCenter(192);
+    card = { id: uid(), type: 'img', x: pos.x, y: pos.y, url, title, note };
+  } else {
+    const text = iTxt.value.trim();
+    if (!text) return;
+    const pos = viewCenter(176);
+    card = { id: uid(), type: 'txt', x: pos.x, y: pos.y, text, color: addColor };
+  }
+  S.cards.push(card);
+  renderAll(); save(); ao.classList.remove('open');
+  setTimeout(() => sel(card.id), 60);
+});
+
+// ── Zoom controls ──
+document.getElementById('zOut').addEventListener('click', () => zoomAt(vp.clientWidth/2, vp.clientHeight/2, S.sc * 0.72));
+document.getElementById('zIn').addEventListener('click', () => zoomAt(vp.clientWidth/2, vp.clientHeight/2, S.sc * 1.38));
+document.getElementById('zReset').addEventListener('click', () => {
+  S.sc = 1; S.px = vp.clientWidth / 2; S.py = vp.clientHeight / 2;
+  applyT(); save();
+});
+
+// ── Adjust viewport for topbar ──
+function adjustForTopbar() {
+  const tb = document.getElementById('topbar');
+  if (tb) {
+    const h = tb.offsetHeight;
+    vp.style.top = h + 'px';
+    empty.style.paddingTop = h + 'px';
+  }
+}
+// Wait for topbar.js (defer) to inject the topbar
+(function waitForTopbar() {
+  if (document.getElementById('topbar')) { adjustForTopbar(); return; }
+  const obs = new MutationObserver(() => {
+    if (document.getElementById('topbar')) { adjustForTopbar(); obs.disconnect(); }
+  });
+  obs.observe(document.body, { childList: true, subtree: false });
+})();
+window.addEventListener('resize', adjustForTopbar);
+
+// ── Helpers ──
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+// ── Cloud sync ──
+window.addEventListener('load', () => {
+  if (typeof initCloudSync === 'function') {
+    initCloudSync({
+      appKey: 'vision',
+      syncedKeys: [LS_KEY],
+      onApplied: () => { load(); renderAll(); }
+    });
+  }
+});
+
+// ── Init ──
+load();
+renderAll();
+
+})();
+</script>
+</body>
+</html>

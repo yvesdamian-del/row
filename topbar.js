@@ -152,6 +152,10 @@ input, select, textarea {
     <span class="topbar-pill-dot"></span>
     <span class="topbar-pill-label">FINANCE</span>
   </a>
+  <a href="vision.html" class="topbar-pill" id="topbarVision">
+    <span class="topbar-pill-dot" style="background:#a78bfa;"></span>
+    <span class="topbar-pill-label">VISION</span>
+  </a>
 </header>
 `;
 
