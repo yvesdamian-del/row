@@ -1808,6 +1808,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const today = list.filter(isDueToday);
     const listEl = document.getElementById('remList');
     const emptyEl = document.getElementById('remEmpty');
+    if (!listEl || !emptyEl) return;
 
     if (!today.length) {
       listEl.innerHTML = '';
