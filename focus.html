@@ -13,533 +13,527 @@
 :root {
   --bg: #0a0a0b;
   --surface: #111113;
-  --border: rgba(255,255,255,0.07);
+  --border: rgba(255,255,255,0.08);
   --text: #FAFAFA;
-  --text-secondary: rgba(255,255,255,0.55);
-  --text-tertiary: rgba(255,255,255,0.3);
-  --focus-color: #60a5fa;
-  --break-color: #6ee7b7;
+  --text-2: rgba(255,255,255,0.5);
+  --text-3: rgba(255,255,255,0.25);
+  --c: #60a5fa;
+  --c-brk: #6ee7b7;
   --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
 }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  -webkit-text-size-adjust: 100%;
+  height: 100%; background: var(--bg); color: var(--text);
+  font-family: var(--font); -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
 }
 body { display: flex; flex-direction: column; }
 
+/* ── Main layout ── */
 .page {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
-  gap: 28px;
-  overflow-y: auto;
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px calc(28px + env(safe-area-inset-bottom));
+  min-height: 0;
+}
+
+/* ── Top section: badge + ring ── */
+.top-section {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px; min-height: 0; width: 100%;
 }
 
 /* Phase badge */
 .phase-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
-  transition: background 0.3s, color 0.3s;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 16px; border-radius: 30px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+  transition: background 0.4s, color 0.4s, border-color 0.4s;
+  border: 1px solid transparent;
 }
-.phase-badge.focus { background: rgba(96,165,250,0.12); color: var(--focus-color); }
-.phase-badge.brk   { background: rgba(110,231,183,0.12); color: var(--break-color); }
-.phase-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: currentColor;
+.phase-badge.focus {
+  background: rgba(96,165,250,0.1);
+  border-color: rgba(96,165,250,0.2);
+  color: var(--c);
 }
+.phase-badge.brk {
+  background: rgba(110,231,183,0.1);
+  border-color: rgba(110,231,183,0.2);
+  color: var(--c-brk);
+}
+.phase-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* Ring */
 .ring-wrap {
   position: relative;
-  width: min(280px, 72vw);
+  width: min(300px, 78vw);
   aspect-ratio: 1;
   display: flex; align-items: center; justify-content: center;
 }
+.ring-glow {
+  position: absolute; inset: -20px;
+  border-radius: 50%;
+  transition: background 0.5s;
+  pointer-events: none;
+}
+.focus-glow .ring-glow { background: radial-gradient(circle, rgba(96,165,250,0.08) 0%, transparent 70%); }
+.brk-glow   .ring-glow { background: radial-gradient(circle, rgba(110,231,183,0.08) 0%, transparent 70%); }
 .timer-ring {
   position: absolute; inset: 0;
   transform: rotate(-90deg);
   overflow: visible;
 }
-.ring-track {
-  fill: none;
-  stroke: rgba(255,255,255,0.06);
-  stroke-width: 8;
-}
+.ring-track { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 6; }
 .ring-progress {
-  fill: none;
-  stroke-width: 8;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.8s linear, stroke 0.3s;
+  fill: none; stroke-width: 6; stroke-linecap: round;
+  transition: stroke-dashoffset 0.85s linear, stroke 0.4s;
 }
 .ring-center {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
   position: relative; z-index: 1;
 }
 .timer-display {
-  font-size: clamp(48px, 14vw, 72px);
-  font-weight: 200;
+  font-size: clamp(52px, 16vw, 80px);
+  font-weight: 100;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   line-height: 1;
-  color: var(--text);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  transition: color 0.4s;
 }
-.timer-sub {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.06em;
+.timer-status {
+  font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-3); font-weight: 500;
 }
 
-/* Controls */
-.controls {
-  display: flex; align-items: center; gap: 16px;
-}
-.btn-start {
-  width: 64px; height: 64px; border-radius: 50%;
-  background: var(--focus-color);
-  border: none; color: #050506;
-  font-size: 22px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.3s, transform 0.1s, opacity 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.btn-start.brk { background: var(--break-color); }
-.btn-start:active { transform: scale(0.93); }
-.btn-icon {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 17px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.btn-icon:active { background: rgba(255,255,255,0.12); }
-
-/* Session streak */
+/* Session dots inside ring area */
 .session-row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
 }
-.session-dots {
-  display: flex; gap: 5px;
+.sd {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  transition: background 0.3s, transform 0.3s;
 }
-.session-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: rgba(96,165,250,0.25);
-  transition: background 0.2s;
-}
-.session-dot.done { background: var(--focus-color); }
+.sd.done { background: var(--c); transform: scale(1.15); }
+.sd.done.brk { background: var(--c-brk); }
 
-/* Settings card */
-.settings-card {
-  width: 100%; max-width: 340px;
+/* ── Controls ── */
+.controls {
+  display: flex; align-items: center; justify-content: center;
+  gap: 20px; padding: 8px 0;
+}
+.btn-ghost {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text-2); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ghost:active { background: rgba(255,255,255,0.1); transform: scale(0.92); }
+.btn-play {
+  width: 72px; height: 72px; border-radius: 50%;
+  border: none; color: #050506; font-size: 26px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.4s, transform 0.1s, box-shadow 0.4s;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--c);
+  box-shadow: 0 0 28px rgba(96,165,250,0.3);
+}
+.btn-play.brk { background: var(--c-brk); box-shadow: 0 0 28px rgba(110,231,183,0.3); }
+.btn-play:active { transform: scale(0.92); }
+
+/* ── Settings sheet ── */
+.settings-toggle {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none;
+  color: var(--text-3); font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+  cursor: pointer; padding: 8px 4px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  font-family: var(--font);
+}
+.settings-toggle:active { color: var(--text-2); }
+.settings-toggle svg { transition: transform 0.25s; }
+.settings-toggle.open svg { transform: rotate(180deg); }
+
+.settings-panel {
+  width: 100%; max-width: 360px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 20px;
-  display: flex; flex-direction: column; gap: 0;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s;
+  opacity: 0;
 }
-.settings-card-title {
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 16px;
-}
+.settings-panel.open { max-height: 400px; opacity: 1; }
+
 .setting-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 0;
+  padding: 14px 18px;
 }
-.setting-row + .setting-row {
-  border-top: 1px solid var(--border);
-}
-.setting-label {
-  font-size: 14px; color: var(--text);
-}
-.setting-sub {
-  font-size: 11px; color: var(--text-tertiary);
-}
-.setting-stepper {
-  display: flex; align-items: center; gap: 0;
-  background: rgba(255,255,255,0.05);
+.setting-row + .setting-row { border-top: 1px solid var(--border); }
+.setting-label { font-size: 14px; color: var(--text); }
+.setting-sub   { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+.stepper {
+  display: flex; align-items: center;
+  background: rgba(255,255,255,0.04);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 10px; overflow: hidden;
 }
 .step-btn {
-  width: 36px; height: 36px;
-  background: none; border: none;
-  color: var(--text);
-  font-size: 18px; font-weight: 300;
-  cursor: pointer;
+  width: 40px; height: 40px;
+  background: none; border: none; color: var(--text);
+  font-size: 20px; font-weight: 300;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.12s;
+  cursor: pointer; transition: background 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.step-btn:active { background: rgba(255,255,255,0.1); }
+.step-btn:active { background: rgba(255,255,255,0.08); }
 .step-val {
-  min-width: 38px;
-  text-align: center;
-  font-size: 15px; font-weight: 600;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+  min-width: 40px; text-align: center;
+  font-size: 16px; font-weight: 600;
+  color: var(--text); font-variant-numeric: tabular-nums;
 }
 
-/* Notification toggle */
-.notif-row {
+.toggle-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 0 0;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
 }
-.toggle-wrap {
-  width: 44px; height: 26px; border-radius: 13px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid var(--border);
+.sw {
+  width: 46px; height: 28px; border-radius: 14px;
+  background: rgba(255,255,255,0.1); border: 1px solid var(--border);
   position: relative; cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s; flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 }
-.toggle-wrap.on { background: var(--focus-color); border-color: var(--focus-color); }
-.toggle-knob {
-  position: absolute; top: 3px; left: 3px;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: #fff;
-  transition: transform 0.2s;
+.sw.on { background: var(--c); border-color: var(--c); }
+.sw-knob {
+  position: absolute; top: 4px; left: 4px;
+  width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
-.toggle-wrap.on .toggle-knob { transform: translateX(18px); }
+.sw.on .sw-knob { transform: translateX(18px); }
+
+/* ── Bottom area ── */
+.bottom-section {
+  width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
 </style>
 </head>
 <body>
 <script src="topbar.js" defer></script>
 
 <div class="page">
-  <!-- Phase badge -->
-  <div class="phase-badge focus" id="phaseBadge">
-    <span class="phase-dot"></span>
-    <span id="phaseLabel">FOKUSZEIT</span>
-  </div>
 
-  <!-- Ring -->
-  <div class="ring-wrap">
-    <svg class="timer-ring" viewBox="0 0 200 200" id="timerRing">
-      <circle class="ring-track" cx="100" cy="100" r="88"/>
-      <circle class="ring-progress" cx="100" cy="100" r="88" id="ringProgress"
-        stroke="#60a5fa"
-        stroke-dasharray="553"
-        stroke-dashoffset="0"/>
-    </svg>
-    <div class="ring-center">
-      <div class="timer-display" id="timerDisplay">25:00</div>
-      <div class="timer-sub" id="timerSub">bereit</div>
+  <!-- Top: badge + ring -->
+  <div class="top-section focus-glow" id="topSection">
+
+    <div class="phase-badge focus" id="phaseBadge">
+      <span class="phase-dot"></span>
+      <span id="phaseLabel">FOKUSZEIT</span>
     </div>
+
+    <div class="ring-wrap">
+      <div class="ring-glow"></div>
+      <svg class="timer-ring" viewBox="0 0 200 200">
+        <circle class="ring-track" cx="100" cy="100" r="88"/>
+        <circle class="ring-progress" cx="100" cy="100" r="88" id="ringProgress"
+          stroke="#60a5fa" stroke-dasharray="553" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-center">
+        <div class="timer-display" id="timerDisplay" style="color:var(--c)">25:00</div>
+        <div class="timer-status" id="timerStatus">bereit</div>
+        <div class="session-row" id="sessionDots">
+          <div class="sd" id="sd0"></div>
+          <div class="sd" id="sd1"></div>
+          <div class="sd" id="sd2"></div>
+          <div class="sd" id="sd3"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Controls -->
   <div class="controls">
-    <button class="btn-icon" id="resetBtn" title="Zurücksetzen">↺</button>
-    <button class="btn-start focus" id="startBtn">▶</button>
-    <button class="btn-icon" id="skipBtn" title="Überspringen">⏭</button>
+    <button class="btn-ghost" id="resetBtn" aria-label="Zurücksetzen">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+    <button class="btn-play focus" id="startBtn" aria-label="Start/Pause">▶</button>
+    <button class="btn-ghost" id="skipBtn" aria-label="Überspringen">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+      </svg>
+    </button>
   </div>
 
-  <!-- Sessions -->
-  <div class="session-row">
-    <div class="session-dots" id="sessionDots">
-      <div class="session-dot" id="sd0"></div>
-      <div class="session-dot" id="sd1"></div>
-      <div class="session-dot" id="sd2"></div>
-      <div class="session-dot" id="sd3"></div>
-    </div>
-    <span id="sessionLabel">0 Sessions heute</span>
-  </div>
+  <!-- Bottom: settings toggle + panel -->
+  <div class="bottom-section">
+    <button class="settings-toggle" id="settingsToggle">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+      Einstellungen
+    </button>
 
-  <!-- Settings -->
-  <div class="settings-card">
-    <div class="settings-card-title">Einstellungen</div>
+    <div class="settings-panel" id="settingsPanel">
 
-    <div class="setting-row">
-      <div>
-        <div class="setting-label">Fokuszeit</div>
-        <div class="setting-sub">Minuten</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Fokuszeit</div>
+          <div class="setting-sub">Minuten</div>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" id="wMinus">−</button>
+          <span class="step-val" id="workVal">25</span>
+          <button class="step-btn" id="wPlus">+</button>
+        </div>
       </div>
-      <div class="setting-stepper">
-        <button class="step-btn" id="workMinus">−</button>
-        <span class="step-val" id="workVal">25</span>
-        <button class="step-btn" id="workPlus">+</button>
-      </div>
-    </div>
 
-    <div class="setting-row">
-      <div>
-        <div class="setting-label">Kurzpause</div>
-        <div class="setting-sub">Minuten</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Kurzpause</div>
+          <div class="setting-sub">Minuten</div>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" id="bMinus">−</button>
+          <span class="step-val" id="breakVal">5</span>
+          <button class="step-btn" id="bPlus">+</button>
+        </div>
       </div>
-      <div class="setting-stepper">
-        <button class="step-btn" id="breakMinus">−</button>
-        <span class="step-val" id="breakVal">5</span>
-        <button class="step-btn" id="breakPlus">+</button>
-      </div>
-    </div>
 
-    <div class="setting-row">
-      <div>
-        <div class="setting-label">Lange Pause</div>
-        <div class="setting-sub">nach 4 Sessions</div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Lange Pause</div>
+          <div class="setting-sub">Nach 4 Sessions</div>
+        </div>
+        <div class="stepper">
+          <button class="step-btn" id="lMinus">−</button>
+          <span class="step-val" id="longVal">15</span>
+          <button class="step-btn" id="lPlus">+</button>
+        </div>
       </div>
-      <div class="setting-stepper">
-        <button class="step-btn" id="longMinus">−</button>
-        <span class="step-val" id="longVal">15</span>
-        <button class="step-btn" id="longPlus">+</button>
-      </div>
-    </div>
 
-    <div class="setting-row notif-row">
-      <div>
-        <div class="setting-label">Ton bei Ende</div>
-        <div class="setting-sub">Akustisches Signal</div>
+      <div class="toggle-row">
+        <div>
+          <div class="setting-label">Ton bei Ende</div>
+          <div class="setting-sub">Akustisches Signal</div>
+        </div>
+        <div class="sw" id="soundSw"><div class="sw-knob"></div></div>
       </div>
-      <div class="toggle-wrap" id="soundToggle">
-        <div class="toggle-knob"></div>
-      </div>
+
     </div>
   </div>
+
 </div>
 
 <script>
 (function () {
 'use strict';
 
-const CIRC = 2 * Math.PI * 88; // ≈ 553
+const CIRC = 2 * Math.PI * 88;
 
-// ── State ──
-const s = loadSettings();
+// ── Settings persist ──
+function loadS() { try { return JSON.parse(localStorage.getItem('focus_settings_v1')) || {}; } catch(e) { return {}; } }
+function saveS() { try { localStorage.setItem('focus_settings_v1', JSON.stringify({ workMin, breakMin, longMin, soundOn })); } catch(e) {} }
+
+const s = loadS();
 let workMin  = s.workMin  || 25;
 let breakMin = s.breakMin || 5;
 let longMin  = s.longMin  || 15;
 let soundOn  = s.soundOn !== undefined ? s.soundOn : true;
 
-let phase      = 'focus'; // 'focus' | 'break' | 'long'
-let running    = false;
-let timeLeft   = workMin * 60;
-let totalTime  = workMin * 60;
-let sessionsToday = loadSessions();
-let interval   = null;
-
-// ── Persist ──
-function loadSettings() {
-  try { return JSON.parse(localStorage.getItem('focus_settings_v1')) || {}; } catch(e) { return {}; }
-}
-function saveSettings() {
-  try { localStorage.setItem('focus_settings_v1', JSON.stringify({ workMin, breakMin, longMin, soundOn })); } catch(e) {}
-}
+// ── Sessions persist ──
 function todayKey() {
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-function loadSessions() {
-  try {
-    const r = JSON.parse(localStorage.getItem('focus_sessions_v1'));
-    if (r && r.date === todayKey()) return r.count || 0;
-    return 0;
-  } catch(e) { return 0; }
+function loadSess() {
+  try { const r = JSON.parse(localStorage.getItem('focus_sessions_v1')); return (r && r.date === todayKey()) ? (r.count || 0) : 0; } catch(e) { return 0; }
 }
-function saveSessions() {
-  try { localStorage.setItem('focus_sessions_v1', JSON.stringify({ date: todayKey(), count: sessionsToday })); } catch(e) {}
-}
+function saveSess() { try { localStorage.setItem('focus_sessions_v1', JSON.stringify({ date: todayKey(), count: sessionsToday })); } catch(e) {} }
 
-// ── DOM refs ──
-const display   = document.getElementById('timerDisplay');
-const sub       = document.getElementById('timerSub');
+// ── State ──
+let phase = 'focus', running = false;
+let timeLeft = workMin * 60, totalTime = workMin * 60;
+let sessionsToday = loadSess();
+let ticker = null;
+
+// ── DOM ──
+const disp      = document.getElementById('timerDisplay');
+const stat      = document.getElementById('timerStatus');
 const ring      = document.getElementById('ringProgress');
-const startBtn  = document.getElementById('startBtn');
-const resetBtn  = document.getElementById('resetBtn');
-const skipBtn   = document.getElementById('skipBtn');
 const badge     = document.getElementById('phaseBadge');
-const phLabel   = document.getElementById('phaseLabel');
-const sessLabel = document.getElementById('sessionLabel');
+const phLbl     = document.getElementById('phaseLabel');
+const startBtn  = document.getElementById('startBtn');
+const topSec    = document.getElementById('topSection');
 const workValEl = document.getElementById('workVal');
 const breakValEl= document.getElementById('breakVal');
 const longValEl = document.getElementById('longVal');
-const soundTog  = document.getElementById('soundToggle');
+const soundSw   = document.getElementById('soundSw');
+const togBtn    = document.getElementById('settingsToggle');
+const panel     = document.getElementById('settingsPanel');
 
 // ── Render ──
-function fmt(s) {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+function fmt(sec) {
+  return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(sec%60).padStart(2,'0');
 }
 
-function renderTimer() {
-  display.textContent = fmt(timeLeft);
-  const pct = totalTime > 0 ? timeLeft / totalTime : 1;
-  ring.style.strokeDashoffset = CIRC * (1 - pct);
-}
-
-function renderPhase() {
-  const isFocus = phase === 'focus';
+function applyTheme(isFocus) {
+  const c = isFocus ? '#60a5fa' : '#6ee7b7';
   badge.className = 'phase-badge ' + (isFocus ? 'focus' : 'brk');
-  ring.style.stroke = isFocus ? '#60a5fa' : '#6ee7b7';
-  startBtn.className = 'btn-start ' + (isFocus ? 'focus' : 'brk');
-  if (phase === 'focus') {
-    phLabel.textContent = 'FOKUSZEIT';
-    sub.textContent = running ? 'fokussiert' : 'bereit';
-  } else if (phase === 'break') {
-    phLabel.textContent = 'KURZPAUSE';
-    sub.textContent = running ? 'erholen' : 'bereit';
-  } else {
-    phLabel.textContent = 'LANGE PAUSE';
-    sub.textContent = running ? 'gut verdient' : 'bereit';
-  }
-}
-
-function renderSessions() {
-  sessLabel.textContent = sessionsToday + ' Session' + (sessionsToday !== 1 ? 's' : '') + ' heute';
-  for (let i = 0; i < 4; i++) {
-    const dot = document.getElementById('sd' + i);
-    if (dot) dot.classList.toggle('done', i < (sessionsToday % 4 || (sessionsToday > 0 && sessionsToday % 4 === 0 ? 4 : 0)));
-  }
-}
-
-function renderSettings() {
-  workValEl.textContent  = workMin;
-  breakValEl.textContent = breakMin;
-  longValEl.textContent  = longMin;
-  soundTog.classList.toggle('on', soundOn);
+  topSec.className = 'top-section ' + (isFocus ? 'focus-glow' : 'brk-glow');
+  ring.style.stroke = c;
+  disp.style.color = c;
+  startBtn.className = 'btn-play ' + (isFocus ? 'focus' : 'brk');
+  document.querySelectorAll('.sd.done').forEach(d => d.classList.toggle('brk', !isFocus));
 }
 
 function renderAll() {
-  renderTimer();
-  renderPhase();
-  renderSessions();
-  renderSettings();
+  // Timer
+  disp.textContent = fmt(timeLeft);
+  ring.style.strokeDashoffset = CIRC * (1 - (totalTime > 0 ? timeLeft / totalTime : 1));
+
+  // Phase
+  const isFocus = phase === 'focus';
+  applyTheme(isFocus);
+  phLbl.textContent = phase === 'long' ? 'LANGE PAUSE' : isFocus ? 'FOKUSZEIT' : 'KURZPAUSE';
+
+  // Status
+  if (!running) stat.textContent = 'bereit';
+  else stat.textContent = isFocus ? 'fokussiert' : 'erholen';
+
+  // Play button icon
   startBtn.textContent = running ? '⏸' : '▶';
+
+  // Sessions dots
+  const mod = sessionsToday % 4 || (sessionsToday > 0 && sessionsToday % 4 === 0 ? 4 : 0);
+  for (let i = 0; i < 4; i++) {
+    const d = document.getElementById('sd' + i);
+    if (d) { d.classList.toggle('done', i < mod); d.classList.toggle('brk', !isFocus && i < mod); }
+  }
+
+  // Settings
+  workValEl.textContent  = workMin;
+  breakValEl.textContent = breakMin;
+  longValEl.textContent  = longMin;
+  soundSw.classList.toggle('on', soundOn);
 }
 
-// ── Timer logic ──
+// ── Timer ──
 function tick() {
-  if (timeLeft <= 0) {
-    phaseComplete();
-    return;
-  }
+  if (timeLeft <= 0) { complete(); return; }
   timeLeft--;
-  renderTimer();
+  disp.textContent = fmt(timeLeft);
+  ring.style.strokeDashoffset = CIRC * (1 - timeLeft / totalTime);
 }
 
-function phaseComplete() {
-  stop();
-  playBeep();
-
+function complete() {
+  clearInterval(ticker); ticker = null; running = false;
+  beep();
   if (phase === 'focus') {
-    sessionsToday++;
-    saveSessions();
-    renderSessions();
-    const isLong = sessionsToday % 4 === 0;
-    startPhase(isLong ? 'long' : 'break');
+    sessionsToday++; saveSess();
+    setPhase(sessionsToday % 4 === 0 ? 'long' : 'break');
   } else {
-    startPhase('focus');
+    setPhase('focus');
   }
 }
 
-function startPhase(ph) {
+function setPhase(ph) {
   phase = ph;
-  if (ph === 'focus')       { timeLeft = totalTime = workMin * 60; }
-  else if (ph === 'break')  { timeLeft = totalTime = breakMin * 60; }
-  else                      { timeLeft = totalTime = longMin * 60; }
+  timeLeft = totalTime = (ph === 'focus' ? workMin : ph === 'break' ? breakMin : longMin) * 60;
   renderAll();
 }
 
-function start() {
+function play() {
   if (running) return;
   running = true;
-  sub.textContent = phase === 'focus' ? 'fokussiert' : 'erholen';
+  stat.textContent = phase === 'focus' ? 'fokussiert' : 'erholen';
   startBtn.textContent = '⏸';
-  interval = setInterval(tick, 1000);
+  ticker = setInterval(tick, 1000);
 }
 
-function stop() {
+function pause() {
+  if (!running) return;
   running = false;
-  clearInterval(interval);
+  clearInterval(ticker); ticker = null;
+  stat.textContent = 'pausiert';
   startBtn.textContent = '▶';
 }
 
-function reset() {
-  stop();
-  startPhase(phase);
-}
+function reset() { pause(); setPhase(phase); }
 
 function skip() {
-  stop();
+  pause();
   if (phase === 'focus') {
-    sessionsToday++;
-    saveSessions();
-    renderSessions();
-    const isLong = sessionsToday % 4 === 0;
-    startPhase(isLong ? 'long' : 'break');
+    sessionsToday++; saveSess();
+    setPhase(sessionsToday % 4 === 0 ? 'long' : 'break');
   } else {
-    startPhase('focus');
+    setPhase('focus');
   }
 }
 
 // ── Sound ──
-function playBeep() {
+function beep() {
   if (!soundOn) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.15, 0.3].forEach((t, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = i === 1 ? 880 : 660;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0.18, ctx.currentTime + t);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.25);
-      osc.start(ctx.currentTime + t);
-      osc.stop(ctx.currentTime + t + 0.3);
+    [[0, 660], [0.18, 880], [0.36, 660]].forEach(([t, freq]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq; o.type = 'sine';
+      g.gain.setValueAtTime(0.16, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
     });
   } catch(e) {}
 }
 
-// ── Event listeners ──
-startBtn.addEventListener('click', () => { if (running) stop(); else start(); });
-resetBtn.addEventListener('click', reset);
-skipBtn.addEventListener('click', skip);
+// ── Events ──
+startBtn.addEventListener('click', () => running ? pause() : play());
+document.getElementById('resetBtn').addEventListener('click', reset);
+document.getElementById('skipBtn').addEventListener('click', skip);
 
-function makeStepper(minusId, plusId, getVal, setVal, min, max) {
+togBtn.addEventListener('click', () => {
+  const open = panel.classList.toggle('open');
+  togBtn.classList.toggle('open', open);
+});
+
+soundSw.addEventListener('click', () => { soundOn = !soundOn; saveS(); renderAll(); });
+
+function stepper(minusId, plusId, get, set, min, max) {
   document.getElementById(minusId).addEventListener('click', () => {
-    if (getVal() <= min) return;
-    setVal(getVal() - 1);
-    saveSettings(); renderSettings();
-    if (!running) startPhase(phase);
+    if (get() <= min) return;
+    set(get() - 1); saveS();
+    if (!running) setPhase(phase); else renderAll();
   });
   document.getElementById(plusId).addEventListener('click', () => {
-    if (getVal() >= max) return;
-    setVal(getVal() + 1);
-    saveSettings(); renderSettings();
-    if (!running) startPhase(phase);
+    if (get() >= max) return;
+    set(get() + 1); saveS();
+    if (!running) setPhase(phase); else renderAll();
   });
 }
 
-makeStepper('workMinus','workPlus',  ()=>workMin,  v=>{ workMin=v; },  1, 90);
-makeStepper('breakMinus','breakPlus',()=>breakMin, v=>{ breakMin=v; }, 1, 30);
-makeStepper('longMinus','longPlus',  ()=>longMin,  v=>{ longMin=v; },  5, 60);
-
-soundTog.addEventListener('click', () => {
-  soundOn = !soundOn;
-  saveSettings(); renderSettings();
-});
+stepper('wMinus','wPlus',  ()=>workMin,  v=>workMin=v,  1, 90);
+stepper('bMinus','bPlus',  ()=>breakMin, v=>breakMin=v, 1, 30);
+stepper('lMinus','lPlus',  ()=>longMin,  v=>longMin=v,  5, 60);
 
 // ── Init ──
-startPhase('focus');
+setPhase('focus');
 })();
 </script>
 </body>
