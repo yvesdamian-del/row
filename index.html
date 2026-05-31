@@ -2116,7 +2116,8 @@ document.addEventListener('DOMContentLoaded', function () {
 (function () {
 'use strict';
 
-const LS_KEY = 'mentor_chat_v1';
+const LS_KEY    = 'mentor_chat_v1';
+const DAILY_KEY = 'mentor_daily_v1';
 const modal  = document.getElementById('mentorModal');
 const msgs   = document.getElementById('mentorMessages');
 const input  = document.getElementById('mentorInput');
@@ -2127,25 +2128,75 @@ let history = [];
 
 // ── Persist ──
 function saveHistory() { try { localStorage.setItem(LS_KEY, JSON.stringify(history)); } catch(e) {} }
-function loadHistory() { try { const r=localStorage.getItem(LS_KEY); if(r) history=JSON.parse(r); } catch(e) {} }
+function loadHistory() { try { const r=localStorage.getItem(LS_KEY); if(r) history=JSON.parse(r)||[]; } catch(e) {} }
+function getDaily()   { try { return JSON.parse(localStorage.getItem(DAILY_KEY)); } catch(e) { return null; } }
+function saveDaily(d) { try { localStorage.setItem(DAILY_KEY, JSON.stringify(d)); } catch(e) {} }
 
-// ── Build goals context from localStorage ──
+// ── Date / context helpers ──
 function activeDateKey() {
   const now = new Date();
   const d = now.getHours() < 6 ? new Date(now-86400000) : now;
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+function timeStr() { return new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
 function buildContext() {
   const dk = activeDateKey();
-  let goals = [], reminders = [];
-  try { goals = JSON.parse(localStorage.getItem('goals:'+dk))||[]; } catch(e) {}
+  let goals=[], reminders=[];
+  try { goals     = JSON.parse(localStorage.getItem('goals:'+dk))||[]; } catch(e) {}
   try { reminders = JSON.parse(localStorage.getItem('reminders_v1'))||[]; } catch(e) {}
   return { goals, reminders, date: dk };
 }
 
-// ── Render ──
-function timeStr() { return new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+// ── Daily tip: one API call per day, cached ──
+async function initDailyTip() {
+  const dk = activeDateKey();
 
+  // New day → clear yesterday's chat
+  if (history.length && history[0]._date && history[0]._date !== dk) {
+    history = []; saveHistory();
+  }
+
+  const stored = getDaily();
+  if (stored && stored.date === dk) {
+    // Already have today's tip
+    setPreview(stored.tip);
+    return;
+  }
+
+  // Fetch tip (1 call per day)
+  setPreview('⏳ Analysiert deine Ziele…');
+  try {
+    const res = await fetch('/api/mentor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'daily', context: buildContext() }),
+    });
+    const data = await res.json();
+    if (res.ok && data.content) {
+      saveDaily({ date: dk, tip: data.content, time: timeStr() });
+      setPreview(data.content);
+    } else {
+      setPreview('Tippe hier um deinen Mentor zu öffnen.');
+    }
+  } catch(e) {
+    setPreview('Tippe hier um deinen Mentor zu öffnen.');
+  }
+}
+
+// ── Preview card ──
+function setPreview(text) { preview.textContent = text || ''; }
+function refreshPreview() {
+  // After chat: show last message; otherwise show daily tip
+  if (history.length) {
+    const last = history[history.length-1];
+    setPreview((last.role==='assistant' ? '' : 'Du: ') + last.content);
+  } else {
+    const daily = getDaily();
+    if (daily && daily.date === activeDateKey()) setPreview(daily.tip);
+  }
+}
+
+// ── Render chat ──
 function renderBubble(role, content, time) {
   const wrap = document.createElement('div');
   wrap.className = 'msg-wrap '+role;
@@ -2155,49 +2206,49 @@ function renderBubble(role, content, time) {
   const t = document.createElement('div');
   t.className = 'msg-time';
   t.textContent = time || timeStr();
-  wrap.appendChild(bubble);
-  wrap.appendChild(t);
+  wrap.appendChild(bubble); wrap.appendChild(t);
   msgs.appendChild(wrap);
   wrap.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  return wrap;
 }
 
 function renderAll() {
   msgs.innerHTML = '';
-  if (!history.length) {
-    const intro = document.createElement('div');
-    intro.className = 'msg-wrap assistant';
-    intro.innerHTML = '<div class="msg-bubble">Hey Yves! Ich bin dein persönlicher Mentor. Ich kenne deine Ziele und bin hier um dich zu unterstützen. Was beschäftigt dich gerade?</div><div class="msg-time">Jetzt</div>';
-    msgs.appendChild(intro);
-    return;
-  }
-  history.forEach(m => renderBubble(m.role, m.content, m.time));
-}
+  const dk = activeDateKey();
+  const daily = getDaily();
 
-function updatePreview() {
+  // Daily tip banner (always first, not part of API history)
+  if (daily && daily.date === dk) {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap assistant';
+    wrap.innerHTML =
+      `<div class="msg-bubble" style="border-left:2px solid rgba(107,227,164,0.45);border-radius:14px 18px 18px 5px">${daily.tip}</div>` +
+      `<div class="msg-time">Tages-Tipp · ${daily.time}</div>`;
+    msgs.appendChild(wrap);
+  }
+
+  // Chat history
   if (history.length) {
-    const last = history[history.length-1];
-    preview.textContent = (last.role === 'assistant' ? '' : 'Du: ') + last.content;
-  } else {
-    preview.textContent = 'Stelle deinem Mentor eine Frage oder lass dich coachen.';
+    history.forEach(m => renderBubble(m.role, m.content, m.time));
+  } else if (!daily || daily.date !== dk) {
+    const el = document.createElement('div');
+    el.style.cssText = 'text-align:center;padding:24px 16px;color:var(--text-tertiary);font-size:13px;line-height:1.6';
+    el.textContent = 'Stelle deinem Mentor eine Frage…';
+    msgs.appendChild(el);
   }
 }
 
-// ── Send ──
+// ── Send chat message (on-demand, short) ──
 async function sendMessage() {
   const text = input.value.trim();
   if (!text || sendBtn.disabled) return;
-
-  input.value = '';
-  input.style.height = '';
+  input.value = ''; input.style.height = '';
   sendBtn.disabled = true;
 
-  const userMsg = { role: 'user', content: text, time: timeStr() };
+  const userMsg = { role: 'user', content: text, time: timeStr(), _date: activeDateKey() };
   history.push(userMsg);
   renderBubble('user', text, userMsg.time);
   saveHistory();
 
-  // Typing indicator
   const typingEl = document.createElement('div');
   typingEl.className = 'mentor-typing';
   typingEl.innerHTML = '<span></span><span></span><span></span>';
@@ -2209,39 +2260,34 @@ async function sendMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        type: 'chat',
         messages: history.map(m => ({ role: m.role, content: m.content })),
         context: buildContext(),
       }),
     });
     const data = await res.json();
     typingEl.remove();
-
     if (!res.ok) {
-      const errText = data.message || data.error || 'Verbindungsfehler';
-      renderBubble('assistant', '⚠️ ' + errText, timeStr());
+      renderBubble('assistant', '⚠️ ' + (data.message||data.error||'Fehler'), timeStr());
     } else {
-      const assistantMsg = { role: 'assistant', content: data.content, time: timeStr() };
-      history.push(assistantMsg);
-      renderBubble('assistant', data.content, assistantMsg.time);
-      saveHistory(); updatePreview();
+      const am = { role: 'assistant', content: data.content, time: timeStr(), _date: activeDateKey() };
+      history.push(am);
+      renderBubble('assistant', data.content, am.time);
+      saveHistory(); refreshPreview();
     }
-  } catch (err) {
+  } catch(e) {
     typingEl.remove();
-    renderBubble('assistant', '⚠️ Keine Verbindung. Bitte versuche es erneut.', timeStr());
+    renderBubble('assistant', '⚠️ Keine Verbindung. Versuche es erneut.', timeStr());
   }
-
   sendBtn.disabled = false;
-  updatePreview();
 }
 
-// ── Input auto-resize ──
+// ── Input ──
 input.addEventListener('input', () => {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 120) + 'px';
 });
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
+input.addEventListener('keydown', e => { if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} });
 sendBtn.addEventListener('click', sendMessage);
 
 // ── Open / Close ──
@@ -2255,20 +2301,19 @@ function closeModal() {
   modal.classList.remove('open');
   document.body.classList.remove('topbar-modal-open');
 }
-
 document.getElementById('mentorCard').addEventListener('click', openModal);
 document.getElementById('mentorCloseBtn').addEventListener('click', closeModal);
-modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-
+modal.addEventListener('click', e => { if (e.target===modal) closeModal(); });
 document.getElementById('mentorClearBtn').addEventListener('click', () => {
-  if (!confirm('Gespräch zurücksetzen?')) return;
-  history = [];
-  saveHistory(); renderAll(); updatePreview();
+  if (!confirm('Chat zurücksetzen? Der Tages-Tipp bleibt.')) return;
+  history = []; saveHistory(); renderAll(); refreshPreview();
 });
 
 // ── Init ──
 loadHistory();
-updatePreview();
+refreshPreview();
+// Fetch daily tip after page is ready (non-blocking)
+setTimeout(initDailyTip, 800);
 })();
 </script>
 </body>
