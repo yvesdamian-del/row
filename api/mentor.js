@@ -48,7 +48,7 @@ module.exports = async function handler(req, res) {
     // ── Daily tip: single turn, very short ──
     if (type === 'daily') {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.0-flash-lite',
         systemInstruction: dailySystem(context),
         generationConfig: { maxOutputTokens: 150, temperature: 0.7 },
       });
@@ -60,7 +60,7 @@ module.exports = async function handler(req, res) {
     if (!messages.length) return res.status(400).json({ error: 'messages required' });
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.0-flash-lite',
       systemInstruction: chatSystem(context),
       generationConfig: { maxOutputTokens: 220, temperature: 0.75 },
     });
