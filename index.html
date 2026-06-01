@@ -2016,16 +2016,71 @@ document.addEventListener('DOMContentLoaded', function () {
 (function () {
 'use strict';
 
-const ua = navigator.userAgent;
+const ua        = navigator.userAgent;
 const isIOS     = /iPhone|iPad|iPod/i.test(ua);
 const isAndroid = /Android/i.test(ua);
 const isTablet  = /iPad/i.test(ua) || (isIOS && screen.width >= 768) || (isAndroid && screen.width >= 600);
 const isMobile  = isIOS || isAndroid;
-const isDesktop = !isMobile;
 
-// Device chip label
-const chip = document.getElementById('devChip');
-chip.textContent = isTablet ? 'iPad' : isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop';
+document.getElementById('devChip').textContent =
+  isTablet ? 'iPad' : isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop';
+
+// ── Shared state ──
+let cpuLoad = null; // 0–100, null = nicht verfügbar
+
+// ── CPU-Auslastung via Web Worker (Benchmark-Vergleich) ──
+// Der Worker läuft eine Tight-Loop für 80 ms und vergleicht die erreichten
+// Iterationen mit einer Baseline. Wenn der Prozessor busy ist, bekommt der
+// Worker weniger Zeit und schafft weniger Iterationen → höhere Last.
+(function startCPUWorker() {
+  try {
+    const code = `
+      let baseline = null;
+      let warmupRounds = 4;
+
+      function bench() {
+        const t = performance.now();
+        let n = 0;
+        while (performance.now() - t < 80) n++;
+        return n;
+      }
+
+      setInterval(() => {
+        const n = bench();
+        if (warmupRounds > 0) {
+          warmupRounds--;
+          if (!baseline || n > baseline) baseline = n;
+          return;
+        }
+        // Drift baseline upward slowly to handle turbo-boost variation
+        if (n > baseline) baseline = baseline * 0.98 + n * 0.02;
+        const load = Math.round(Math.max(0, Math.min(100, (1 - n / baseline) * 100)));
+        postMessage(load);
+      }, 1200);
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    worker.onmessage = e => { cpuLoad = e.data; refresh(); };
+  } catch (e) { /* Worker nicht verfügbar (z.B. strict CSP) */ }
+})();
+
+function loadColor(pct) {
+  return pct > 80 ? '#FF6B6B' : pct > 50 ? '#F2C063' : '#6BE3A4';
+}
+function batteryColor(pct) {
+  return pct > 50 ? '#6BE3A4' : pct > 20 ? '#F2C063' : '#FF6B6B';
+}
+function netLabel(conn) {
+  if (!conn) return null;
+  const t = conn.type, e = conn.effectiveType;
+  if (t === 'wifi')     return 'WiFi';
+  if (t === 'ethernet') return 'Kabel';
+  if (t === 'cellular') return e ? e.toUpperCase() : 'Mobil';
+  if (e === '4g')       return '4G / LTE';
+  if (e === '3g')       return '3G';
+  if (e === '2g' || e === 'slow-2g') return '2G';
+  return t || e || null;
+}
 
 function row(icon, name, value, barPct, barColor) {
   const hasBar = barPct !== null && barPct !== undefined;
@@ -2039,40 +2094,45 @@ function row(icon, name, value, barPct, barColor) {
   </div>`;
 }
 
-function batteryColor(pct) {
-  return pct > 50 ? '#6BE3A4' : pct > 20 ? '#F2C063' : '#FF6B6B';
-}
-
-function netLabel(conn) {
-  if (!conn) return null;
-  const type = conn.type;
-  const eff  = conn.effectiveType;
-  if (type === 'wifi')     return 'WiFi';
-  if (type === 'ethernet') return 'Kabel';
-  if (type === 'cellular') return eff ? eff.toUpperCase() : 'Mobil';
-  if (eff === '4g')        return '4G / LTE';
-  if (eff === '3g')        return '3G';
-  if (eff === '2g' || eff === 'slow-2g') return '2G';
-  return type || eff || '—';
-}
-
 async function refresh() {
   const rows = [];
 
-  // ── Akku (Battery API – Chrome/Android; not available on iOS) ──
+  // ── CPU-Auslastung ──
+  if (cpuLoad !== null) {
+    const cores = navigator.hardwareConcurrency || '';
+    const coreLabel = cores ? ` · ${cores} Kerne` : '';
+    rows.push(row('⚡', 'CPU', `${cpuLoad}%${coreLabel}`, cpuLoad, loadColor(cpuLoad)));
+  } else if (navigator.hardwareConcurrency) {
+    // Noch kein Worker-Ergebnis — nur Kerne zeigen
+    rows.push(row('⚡', 'CPU', `${navigator.hardwareConcurrency} Kerne (wird gemessen…)`, null, null));
+  }
+
+  // ── RAM-Auslastung ──
+  if (performance.memory) {
+    // Chrome/Edge: echter JS-Heap (nächste Annäherung an Speichernutzung im Browser)
+    const used  = Math.round(performance.memory.usedJSHeapSize  / 1048576);
+    const total = Math.round(performance.memory.totalJSHeapSize / 1048576);
+    const limit = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
+    const pct   = Math.round(used / limit * 100);
+    const devMem = navigator.deviceMemory ? ` · Gerät: ${navigator.deviceMemory} GB` : '';
+    rows.push(row('🧠', 'RAM', `${used} / ${limit} MB (${pct}%)${devMem}`, pct, loadColor(pct)));
+  } else if (navigator.deviceMemory) {
+    // Safari/Firefox: nur Geräte-RAM bekannt, kein Heap-Zugriff
+    rows.push(row('🧠', 'RAM', `~${navigator.deviceMemory} GB gesamt`, null, null));
+  }
+
+  // ── Akku ──
   if (navigator.getBattery) {
     try {
       const b = await navigator.getBattery();
       const pct = Math.round(b.level * 100);
-      const charging = b.charging;
-      const timeLeft = !charging && b.dischargingTime && isFinite(b.dischargingTime)
-        ? ' · ~' + Math.round(b.dischargingTime / 60) + ' min'
+      const timeLeft = !b.charging && b.dischargingTime && isFinite(b.dischargingTime)
+        ? ` · ~${Math.round(b.dischargingTime / 60)} min`
         : '';
-      const label = charging ? `${pct}% · ⚡ Lädt${timeLeft}` : `${pct}%${timeLeft}`;
+      const label = b.charging ? `${pct}% · ⚡ Lädt${timeLeft}` : `${pct}%${timeLeft}`;
       rows.push(row('🔋', 'Akku', label, pct, batteryColor(pct)));
-
-      b.addEventListener('levelchange', refresh, { once: true });
-      b.addEventListener('chargingchange', refresh, { once: true });
+      b.addEventListener('levelchange',   refresh, { once: true });
+      b.addEventListener('chargingchange',refresh, { once: true });
     } catch (e) {}
   }
 
@@ -2080,43 +2140,22 @@ async function refresh() {
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const netLbl = netLabel(conn);
   if (netLbl) {
-    const dl = conn.downlink && conn.downlink > 0 ? ` · ~${conn.downlink} Mb/s` : '';
-    const rtt = conn.rtt ? ` · ${conn.rtt} ms` : '';
+    const dl  = conn.downlink > 0 ? ` · ~${conn.downlink} Mb/s` : '';
+    const rtt = conn.rtt       ? ` · ${conn.rtt} ms` : '';
     rows.push(row('📶', 'Netz', netLbl + dl + rtt, null, null));
-  }
-
-  // ── RAM (deviceMemory – Chrome/Edge/Android; not iOS) ──
-  if (navigator.deviceMemory) {
-    rows.push(row('🧠', 'RAM', `~${navigator.deviceMemory} GB`, null, null));
-  }
-
-  // ── JS Heap (performance.memory – Chrome/Edge desktop only) ──
-  if (performance.memory) {
-    const used  = Math.round(performance.memory.usedJSHeapSize  / 1048576);
-    const limit = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
-    const pct   = Math.round(used / limit * 100);
-    const color = pct > 80 ? '#FF6B6B' : pct > 50 ? '#F2C063' : '#60a5fa';
-    rows.push(row('💾', 'Heap', `${used} / ${limit} MB`, pct, color));
-  }
-
-  // ── CPU-Kerne ──
-  if (navigator.hardwareConcurrency) {
-    rows.push(row('⚡', 'CPU', `${navigator.hardwareConcurrency} Kerne`, null, null));
   }
 
   // ── Display ──
   const dpr = (window.devicePixelRatio || 1).toFixed(1);
-  const dprLabel = dpr !== '1.0' ? ` @${dpr}×` : '';
-  rows.push(row('🖥', 'Display', `${screen.width}×${screen.height}${dprLabel}`, null, null));
+  rows.push(row('🖥', 'Display', `${screen.width}×${screen.height} @${dpr}×`, null, null));
 
-  // ── Wenn gar nichts verfügbar (z. B. Firefox mobile ohne APIs) ──
-  if (rows.length === 0) {
+  if (rows.length === 0)
     rows.push(row('ℹ️', 'Info', 'Gerätedaten nicht verfügbar', null, null));
-  }
 
   document.getElementById('devGrid').innerHTML = rows.join('');
 }
 
+// Erste Anzeige sofort, danach alle 8 s für Heap-Aktualisierung
 refresh();
 setInterval(refresh, 8000);
 })();
