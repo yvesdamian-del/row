@@ -820,6 +820,62 @@ body::after {
   color: var(--success); transition: background 0.15s;
 }
 .rem-save-btn:hover { background: rgba(107,227,164,0.25); }
+
+/* ===== Gerätestatus ===== */
+.dev-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 14px 16px 10px;
+  margin-bottom: 18px;
+}
+.dev-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dev-card-label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 8px;
+}
+.dev-live-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #6BE3A4;
+  box-shadow: 0 0 5px rgba(107,227,164,0.7);
+  animation: led-pulse 2s ease-in-out infinite;
+}
+.dev-device-chip {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px; padding: 2px 8px;
+}
+.dev-grid { display: flex; flex-direction: column; gap: 0; }
+.dev-stat {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0;
+}
+.dev-stat + .dev-stat { border-top: 1px solid rgba(255,255,255,0.04); }
+.dev-stat-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+.dev-stat-name {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-tertiary); width: 50px; flex-shrink: 0;
+}
+.dev-stat-bar-wrap {
+  flex: 1; height: 3px; background: rgba(255,255,255,0.06);
+  border-radius: 2px; overflow: hidden;
+}
+.dev-stat-bar { height: 100%; border-radius: 2px; transition: width 1.2s ease; min-width: 2px; }
+.dev-stat-no-bar { flex: 1; }
+.dev-stat-value {
+  font-size: 11.5px; font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 110px; text-align: right;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -902,6 +958,18 @@ body::after {
       <div class="day-ring-remaining" id="dayRingRemaining">—</div>
       <div class="day-ring-hours">08:00 – 00:00 · Tageswechsel um 06:00</div>
     </div>
+  </div>
+
+  <!-- Gerätestatus -->
+  <div class="dev-card" id="devCard">
+    <div class="dev-header">
+      <span class="dev-card-label">
+        <span class="dev-live-dot"></span>
+        Gerätestatus
+      </span>
+      <span class="dev-device-chip" id="devChip">—</span>
+    </div>
+    <div class="dev-grid" id="devGrid"></div>
   </div>
 
   <div class="section">
@@ -1940,6 +2008,117 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Stündlich neu laden
   setInterval(() => { const u = localStorage.getItem(STORE_KEY); if (u) loadCalendar(u); }, 60 * 60 * 1000);
+})();
+</script>
+
+<script>
+/* ── Gerätestatus ── */
+(function () {
+'use strict';
+
+const ua = navigator.userAgent;
+const isIOS     = /iPhone|iPad|iPod/i.test(ua);
+const isAndroid = /Android/i.test(ua);
+const isTablet  = /iPad/i.test(ua) || (isIOS && screen.width >= 768) || (isAndroid && screen.width >= 600);
+const isMobile  = isIOS || isAndroid;
+const isDesktop = !isMobile;
+
+// Device chip label
+const chip = document.getElementById('devChip');
+chip.textContent = isTablet ? 'iPad' : isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop';
+
+function row(icon, name, value, barPct, barColor) {
+  const hasBar = barPct !== null && barPct !== undefined;
+  return `<div class="dev-stat">
+    <span class="dev-stat-icon">${icon}</span>
+    <span class="dev-stat-name">${name}</span>
+    ${hasBar
+      ? `<div class="dev-stat-bar-wrap"><div class="dev-stat-bar" style="width:${Math.min(100,barPct)}%;background:${barColor}"></div></div>`
+      : `<span class="dev-stat-no-bar"></span>`}
+    <span class="dev-stat-value">${value}</span>
+  </div>`;
+}
+
+function batteryColor(pct) {
+  return pct > 50 ? '#6BE3A4' : pct > 20 ? '#F2C063' : '#FF6B6B';
+}
+
+function netLabel(conn) {
+  if (!conn) return null;
+  const type = conn.type;
+  const eff  = conn.effectiveType;
+  if (type === 'wifi')     return 'WiFi';
+  if (type === 'ethernet') return 'Kabel';
+  if (type === 'cellular') return eff ? eff.toUpperCase() : 'Mobil';
+  if (eff === '4g')        return '4G / LTE';
+  if (eff === '3g')        return '3G';
+  if (eff === '2g' || eff === 'slow-2g') return '2G';
+  return type || eff || '—';
+}
+
+async function refresh() {
+  const rows = [];
+
+  // ── Akku (Battery API – Chrome/Android; not available on iOS) ──
+  if (navigator.getBattery) {
+    try {
+      const b = await navigator.getBattery();
+      const pct = Math.round(b.level * 100);
+      const charging = b.charging;
+      const timeLeft = !charging && b.dischargingTime && isFinite(b.dischargingTime)
+        ? ' · ~' + Math.round(b.dischargingTime / 60) + ' min'
+        : '';
+      const label = charging ? `${pct}% · ⚡ Lädt${timeLeft}` : `${pct}%${timeLeft}`;
+      rows.push(row('🔋', 'Akku', label, pct, batteryColor(pct)));
+
+      b.addEventListener('levelchange', refresh, { once: true });
+      b.addEventListener('chargingchange', refresh, { once: true });
+    } catch (e) {}
+  }
+
+  // ── Netzwerk ──
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const netLbl = netLabel(conn);
+  if (netLbl) {
+    const dl = conn.downlink && conn.downlink > 0 ? ` · ~${conn.downlink} Mb/s` : '';
+    const rtt = conn.rtt ? ` · ${conn.rtt} ms` : '';
+    rows.push(row('📶', 'Netz', netLbl + dl + rtt, null, null));
+  }
+
+  // ── RAM (deviceMemory – Chrome/Edge/Android; not iOS) ──
+  if (navigator.deviceMemory) {
+    rows.push(row('🧠', 'RAM', `~${navigator.deviceMemory} GB`, null, null));
+  }
+
+  // ── JS Heap (performance.memory – Chrome/Edge desktop only) ──
+  if (performance.memory) {
+    const used  = Math.round(performance.memory.usedJSHeapSize  / 1048576);
+    const limit = Math.round(performance.memory.jsHeapSizeLimit / 1048576);
+    const pct   = Math.round(used / limit * 100);
+    const color = pct > 80 ? '#FF6B6B' : pct > 50 ? '#F2C063' : '#60a5fa';
+    rows.push(row('💾', 'Heap', `${used} / ${limit} MB`, pct, color));
+  }
+
+  // ── CPU-Kerne ──
+  if (navigator.hardwareConcurrency) {
+    rows.push(row('⚡', 'CPU', `${navigator.hardwareConcurrency} Kerne`, null, null));
+  }
+
+  // ── Display ──
+  const dpr = (window.devicePixelRatio || 1).toFixed(1);
+  const dprLabel = dpr !== '1.0' ? ` @${dpr}×` : '';
+  rows.push(row('🖥', 'Display', `${screen.width}×${screen.height}${dprLabel}`, null, null));
+
+  // ── Wenn gar nichts verfügbar (z. B. Firefox mobile ohne APIs) ──
+  if (rows.length === 0) {
+    rows.push(row('ℹ️', 'Info', 'Gerätedaten nicht verfügbar', null, null));
+  }
+
+  document.getElementById('devGrid').innerHTML = rows.join('');
+}
+
+refresh();
+setInterval(refresh, 8000);
 })();
 </script>
 </body>
